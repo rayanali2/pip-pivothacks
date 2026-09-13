@@ -148,7 +148,10 @@ let sdkPromise: Promise<SnowflakeSdk> | null = null;
  */
 function loadSdk(): Promise<SnowflakeSdk> {
   if (!sdkPromise) {
-    sdkPromise = import('snowflake-sdk').then((sdk) => {
+    sdkPromise = import('snowflake-sdk').then((module) => {
+      // Node 24 exposes this CommonJS package under `default`; older runtimes expose
+      // its named exports directly. Normalize both shapes before using the SDK.
+      const sdk = (module as unknown as { default?: SnowflakeSdk }).default ?? module;
       sdk.configure({
         logLevel: 'ERROR',
         customLogger: {
