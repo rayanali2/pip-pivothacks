@@ -267,25 +267,25 @@ struct TimelineEntryCard: View {
     private var cardBackground: some View {
         switch entry.style {
         case .doNow:
-            shape.fill(Color.white)
+            shape.fill(PipDesign.surface)
                 .overlay { shape.fill(PipDesign.accent.opacity(0.08)) }
                 .overlay { shape.strokeBorder(PipDesign.accent.opacity(0.45), lineWidth: 1.5) }
         case .fixedBlock:
             shape.fill(PipDesign.mist)
                 .overlay { shape.strokeBorder(PipDesign.line.opacity(0.7)) }
         case .continuation:
-            shape.fill(Color.white)
+            shape.fill(PipDesign.surface)
                 .overlay { shape.strokeBorder(PipDesign.accent.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [5, 4])) }
         case .task, .marker:
-            shape.fill(Color.white)
+            shape.fill(PipDesign.surface)
                 .overlay { shape.strokeBorder(PipDesign.line) }
         }
     }
 
     private var iconBackground: Color {
         switch entry.style {
-        case .doNow: return Color.white
-        case .fixedBlock: return Color.white.opacity(0.7)
+        case .doNow: return PipDesign.surface
+        case .fixedBlock: return PipDesign.surface.opacity(0.7)
         case .task, .continuation, .marker: return PipDesign.mist
         }
     }
@@ -421,7 +421,7 @@ struct TimelineTrayCard: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white, in: shape)
+        .background(PipDesign.surface, in: shape)
         .overlay { outline }
         .overlay {
             if highlighted {

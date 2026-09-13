@@ -112,7 +112,7 @@ struct DoNowStakesStrip: View {
             .foregroundStyle(evidence.fired ? PipDesign.accent : PipDesign.secondary)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Capsule().fill(evidence.fired ? PipDesign.accent.opacity(0.12) : Color.white))
+            .background(Capsule().fill(evidence.fired ? PipDesign.accent.opacity(0.12) : PipDesign.surface))
             .overlay {
                 Capsule().strokeBorder(border, lineWidth: isExpanded ? 1.5 : 1)
             }

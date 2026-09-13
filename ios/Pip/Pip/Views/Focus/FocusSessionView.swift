@@ -89,7 +89,7 @@ struct FocusSessionView: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(PipDesign.ink)
                     .frame(width: 44, height: 44)
-                    .background(Color.white, in: Circle())
+                    .background(PipDesign.surface, in: Circle())
                     .overlay { Circle().strokeBorder(PipDesign.line) }
             }
             .accessibilityLabel("Close focus")
@@ -351,9 +351,9 @@ private struct FocusSecondaryButtonStyle: ButtonStyle {
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
-                .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(PipDesign.surface, in: RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous)
                         .strokeBorder(PipDesign.line)
                 }
                 .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.45)

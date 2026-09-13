@@ -502,16 +502,19 @@ private struct TodayFocusCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Label(started ? "IN MOTION" : "UP FIRST", systemImage: started ? "checkmark.circle.fill" : "sparkle")
-                    .font(.caption.weight(.bold)).tracking(1)
-                    .foregroundStyle(started ? PipDesign.positive : PipDesign.accent)
+                Label(started ? "In motion" : "Do this now", systemImage: started ? "checkmark.circle.fill" : "sparkle")
+                    .labelStyle(PipCompactLabelStyle())
+                    .pipEyebrow(started ? PipDesign.positive : PipDesign.accent)
                 Spacer()
                 TaskGlyph(category: item.category, size: 42)
             }
-            Text(item.title).font(.system(.title, design: .rounded, weight: .bold))
+            Text(item.title).font(PipDesign.title)
                 .fixedSize(horizontal: false, vertical: true)
             DoNowStakesStrip(item: item, planNow: plan.reasoning.now)
-            TaskMetadata(item: item, now: plan.reasoning.now)
+            // The stakes countdown already shows due time and money at risk; tags only fill in without a deadline.
+            if item.dueAt == nil {
+                TaskMetadata(item: item, now: plan.reasoning.now)
+            }
             if let available, let used = PlanVisuals.windowMinutes(item) {
                 WindowFitView(used: used, available: available)
             }
@@ -533,7 +536,9 @@ private struct TodayFocusCard: View {
                         Spacer()
                         Image(systemName: "arrow.up.right")
                     }
-                    .font(.subheadline.weight(.medium)).frame(minHeight: 36)
+                    .font(.subheadline.weight(.medium))
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
             } else {
                 PlanDisclosure(title: "Next step", text: item.action)

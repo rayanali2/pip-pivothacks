@@ -79,8 +79,8 @@ private struct OverrunPreviewResultCard: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 14))
-        .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(PipDesign.accent.opacity(0.3)) }
+        .background(PipDesign.surface, in: RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous).strokeBorder(PipDesign.accent.opacity(0.3)) }
         .accessibilityElement(children: .combine)
     }
 }

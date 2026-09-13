@@ -221,7 +221,7 @@ private struct PipelineChipFlow: View {
     @State private var appeared = false
 
     var body: some View {
-        FlowLayout(spacing: 6, lineSpacing: 6) {
+        PipFlowLayout(spacing: 6, lineSpacing: 6) {
             ForEach(Array(chips.enumerated()), id: \.offset) { index, chip in
                 PipelineChipView(chip: chip)
                     .scaleEffect(appeared || reduceMotion ? 1 : 0.6)
@@ -272,89 +272,8 @@ private struct PipelineChipView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
-        .background(Color.white, in: shape)
+        .background(PipDesign.surface, in: shape)
         .overlay { shape.strokeBorder(PipDesign.line) }
-    }
-}
-
-// MARK: - Flow layout
-
-/// Left-aligned rows that wrap to the proposed width. A subview wider than a row is offered
-/// the row width, so long chips wrap (or truncate, if they cap their lines) instead of overflowing.
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
-    var lineSpacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let maxWidth = Self.finite(proposal.width)
-        let arrangement = arrange(maxWidth: maxWidth, subviews: subviews)
-        // Fill a finite proposal so placement wraps exactly as measured.
-        return CGSize(width: maxWidth ?? arrangement.size.width, height: arrangement.size.height)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let arrangement = arrange(maxWidth: bounds.width, subviews: subviews)
-        for (index, frame) in arrangement.frames.enumerated() where index < subviews.count {
-            subviews[index].place(
-                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
-                anchor: .topLeading,
-                proposal: ProposedViewSize(width: frame.width, height: frame.height)
-            )
-        }
-    }
-
-    private struct Arrangement {
-        var frames: [CGRect]
-        var size: CGSize
-    }
-
-    /// Greedy line breaking; each line's items are centred vertically on that line.
-    private func arrange(maxWidth: CGFloat?, subviews: Subviews) -> Arrangement {
-        let limit = maxWidth ?? .infinity
-        var frames: [CGRect] = []
-        var usedWidth: CGFloat = 0
-        var lineStart = 0
-        var x: CGFloat = 0
-        var y: CGFloat = 0
-        var lineHeight: CGFloat = 0
-
-        func finishLine() {
-            for index in lineStart..<frames.count {
-                frames[index].origin.y = y + (lineHeight - frames[index].height) / 2
-            }
-            usedWidth = max(usedWidth, x)
-        }
-
-        for subview in subviews {
-            var size = subview.sizeThatFits(.unspecified)
-            if size.width > limit {
-                size = subview.sizeThatFits(ProposedViewSize(width: limit, height: nil))
-                size.width = min(size.width, limit)
-            }
-            let lineHasItems = frames.count > lineStart
-            let needed = lineHasItems ? x + spacing + size.width : size.width
-            if lineHasItems && needed > limit + 0.5 {
-                finishLine()
-                y += lineHeight + lineSpacing
-                lineStart = frames.count
-                x = 0
-                lineHeight = 0
-            }
-            let originX = frames.count > lineStart ? x + spacing : 0
-            frames.append(CGRect(x: originX, y: y, width: size.width, height: size.height))
-            x = originX + size.width
-            lineHeight = max(lineHeight, size.height)
-        }
-        if !frames.isEmpty {
-            finishLine()
-        }
-        let height = frames.isEmpty ? 0 : y + lineHeight
-        return Arrangement(frames: frames, size: CGSize(width: usedWidth, height: height))
-    }
-
-    private static func finite(_ value: CGFloat?) -> CGFloat? {
-        guard let value, value.isFinite else { return nil }
-        return max(value, 0)
     }
 }
 
