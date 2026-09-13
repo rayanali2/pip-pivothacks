@@ -1,0 +1,5 @@
+.capture-tools { gap: 8px; }
+.capture-tools button { flex: 1; }
+.capture-tools + span { display: block; margin-top: 8px; color: #727889; font-size: 10px; }
+.card .prompt { padding: 9px; border-radius: 9px; background: #f5f6fb; color: #31384f; font-weight: 600; }
+.section-heading .secondary { margin-top: 4px; }

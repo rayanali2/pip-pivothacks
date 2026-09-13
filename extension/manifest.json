@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Pip — One thing at a time",
+  "version": "1.0.0",
+  "description": "Your student day, made manageable. Plan with Pip in Chrome's side panel.",
+  "minimum_chrome_version": "116",
+  "permissions": ["activeTab", "scripting", "sidePanel", "storage"],
+  "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
+  "background": {"service_worker": "background.js"},
+  "action": {"default_title": "Open Pip"},
+  "side_panel": {"default_path": "panel.html"}
+}
