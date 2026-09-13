@@ -27,6 +27,7 @@ final class OfflineService: UniMateService {
     }
 
     func load<T: Decodable>(_ fixture: Fixture, as type: T.Type) throws -> T {
+        guard Config.isDemoMode else { throw UniMateError.server("UniMate cannot make a new plan while offline. Reconnect to the server and try again; your input has not been replaced with a demo.") }
         guard let url = Bundle.main.url(forResource: fixture.rawValue, withExtension: "json") else {
             throw UniMateError.missingFixture(fixture.rawValue)
         }
@@ -59,26 +60,39 @@ final class OfflineService: UniMateService {
         throw UniMateError.server("Live context planning needs the UniMate API.")
     }
 
-    func captureVoice(fileURL: URL, followupPlanID: String?) async throws -> CaptureResponse {
+    // Fixtures ignore the on-device transcript, exactly like mock voice capture ignores the audio.
+    func captureVoice(fileURL: URL, followupPlanID: String?, clientTranscript: String?) async throws -> CaptureResponse {
         try? FileManager.default.removeItem(at: fileURL)
         if followupPlanID != nil {
-            return try followUpCapture(transcript: "I only have 25 minutes.")
+            return try followUpCapture(transcript: "I only have 25 minutes.", typed: false)
         }
         let base = try load(.captureVoice, as: CaptureResponse.self)
-        return remember(capture: base, transcript: base.transcript)
+        return remember(capture: base, transcript: base.transcript, typed: false)
     }
 
     func captureText(_ text: String, followupPlanID: String?) async throws -> CaptureResponse {
         if followupPlanID != nil {
-            return try followUpCapture(transcript: text)
+            return try followUpCapture(transcript: text, typed: true)
         }
         let base = try load(.captureVoice, as: CaptureResponse.self)
-        return remember(capture: base, transcript: text)
+        return remember(capture: base, transcript: text, typed: true)
     }
 
-    func rerank(planID: String, context: RerankContextInput) async throws -> RerankResponse {
+    func rerank(planID: String, context: RerankContextInput, preview: Bool) async throws -> RerankResponse {
+        // The one stored rerank can't answer an arbitrary "what if", so previews never pretend to.
+        guard !preview else { throw UniMateError.previewNeedsServer }
+        // rerank_25 only answers a question or exactly 25 minutes; any other free time must not show its plan.
+        if context.question == nil, context.availableMinutes != Self.rerankFixtureMinutes {
+            return try fullWindowRerank(planID: planID, minutes: context.availableMinutes)
+        }
         var response = try load(.rerank25, as: RerankResponse.self)
         response.source = .fallback
+        response.pipeline = offlineStages(
+            transcript: context.question,
+            typed: true,
+            extractedTasks: nil,
+            plan: response.plan
+        )
         knownPlans[response.plan.planId] = response.plan
         recordPlanInHistory(response.plan, transcript: nil, diff: response.diff)
         return response
@@ -195,7 +209,81 @@ final class OfflineService: UniMateService {
 
     // MARK: Private
 
-    private func followUpCapture(transcript: String) throws -> CaptureResponse {
+    /// The available_minutes the rerank_25 fixture was computed for.
+    private static let rerankFixtureMinutes = 25
+
+    /// Free time that covers the capture fixture's whole window (or no limit) serves that plan again,
+    /// recorded as a rerank for the minutes asked so the free-time picker stays on the chosen preset.
+    /// Anything shorter than the window, other than 25, has no stored answer.
+    private func fullWindowRerank(planID: String, minutes: Int?) throws -> RerankResponse {
+        let base = try load(.captureVoice, as: CaptureResponse.self).plan
+        let reasoning = base.reasoning
+        let windowMinutes = reasoning.freeWindow?.minutes ?? reasoning.effectiveMinutes
+        if let minutes, minutes < windowMinutes {
+            throw UniMateError.server("Replanning for \(minutes) min needs the UniMate server.")
+        }
+
+        let previous = knownPlans[planID]
+        let plan = Plan(
+            planId: base.planId,
+            studentId: base.studentId,
+            captureId: base.captureId,
+            createdAt: base.createdAt,
+            model: base.model,
+            doNow: base.doNow,
+            next: base.next,
+            today: base.today,
+            canWait: base.canWait,
+            reasoning: PlanReasoning(
+                summary: reasoning.summary,
+                now: reasoning.now,
+                freeWindow: reasoning.freeWindow,
+                effectiveMinutes: reasoning.effectiveMinutes,
+                context: PlanContext(
+                    availableMinutes: minutes,
+                    cashAvailable: reasoning.context.cashAvailable,
+                    question: nil
+                ),
+                cashAvailable: reasoning.cashAvailable,
+                budgetUntil: reasoning.budgetUntil,
+                daysUntilBudget: reasoning.daysUntilBudget,
+                dailyBudget: reasoning.dailyBudget,
+                warnings: reasoning.warnings,
+                balanceGuard: reasoning.balanceGuard,
+                answer: reasoning.answer,
+                preRank: reasoning.preRank,
+                trigger: .rerank,
+                previousPlanId: planID
+            )
+        )
+
+        let headline: String
+        if let minutes, minutes > windowMinutes {
+            headline = "\(minutes) min covers your whole \(windowMinutes)-min window, so the full plan is back."
+        } else {
+            headline = "Back to your full \(windowMinutes) min free."
+        }
+        // Unknown previous plan (e.g. it came from the server before going offline): claim no change.
+        let doNowChanged = previous.map { $0.doNow?.itemId != plan.doNow?.itemId } ?? false
+        let diff = PlanDiff(
+            headline: headline,
+            doNowChanged: doNowChanged,
+            previousDoNowTitle: previous?.doNow?.title,
+            moves: []
+        )
+
+        knownPlans[plan.planId] = plan
+        recordPlanInHistory(plan, transcript: nil, diff: diff)
+        return RerankResponse(
+            source: .fallback,
+            plan: plan,
+            previousPlanId: planID,
+            diff: diff,
+            pipeline: offlineStages(transcript: nil, typed: true, extractedTasks: nil, plan: plan)
+        )
+    }
+
+    private func followUpCapture(transcript: String, typed: Bool) throws -> CaptureResponse {
         let base = try load(.captureVoice, as: CaptureResponse.self)
         let rerank = try load(.rerank25, as: RerankResponse.self)
         knownPlans[base.plan.planId] = base.plan
@@ -210,11 +298,12 @@ final class OfflineService: UniMateService {
             tasks: base.tasks,
             plan: rerank.plan,
             diff: rerank.diff,
-            previousPlanId: rerank.previousPlanId
+            previousPlanId: rerank.previousPlanId,
+            pipeline: offlineStages(transcript: transcript, typed: typed, extractedTasks: nil, plan: rerank.plan)
         )
     }
 
-    private func remember(capture base: CaptureResponse, transcript: String) -> CaptureResponse {
+    private func remember(capture base: CaptureResponse, transcript: String, typed: Bool) -> CaptureResponse {
         knownPlans[base.plan.planId] = base.plan
         knownTasks = base.tasks
         recordPlanInHistory(base.plan, transcript: transcript, diff: nil)
@@ -226,7 +315,21 @@ final class OfflineService: UniMateService {
             tasks: base.tasks,
             plan: base.plan,
             diff: nil,
-            previousPlanId: nil
+            previousPlanId: nil,
+            pipeline: offlineStages(transcript: transcript, typed: typed, extractedTasks: base.tasks, plan: base.plan)
+        )
+    }
+
+    /// Always synthesized, even if a fixture carries a pipeline: a recorded pipeline would name
+    /// engines and timings from when the fixture was made, not from this answer.
+    private func offlineStages(transcript: String?, typed: Bool, extractedTasks: [UniMateTask]?, plan: Plan) -> [UniMateelineStage] {
+        UniMateelineFallback.stages(
+            transcript: transcript,
+            typed: typed,
+            extractedTasks: extractedTasks,
+            plan: plan,
+            engine: UniMateelineFallback.offlineEngine,
+            status: "fallback"
         )
     }
 

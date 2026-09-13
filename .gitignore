@@ -24,3 +24,6 @@ Thumbs.db
 
 # local uploads
 api/tmp/
+
+# local agent tooling / worktrees
+.claude/

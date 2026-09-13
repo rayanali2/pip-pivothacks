@@ -10,7 +10,7 @@ export function plansRouter(service: UniMateService): Router {
     '/plans/rerank',
     asyncRoute(async (req, res) => {
       const body = parseInput(rerankSchema, req.body);
-      res.json(await service.rerank({ student_id: body.student_id, plan_id: body.plan_id, context: body.context }));
+      res.json(await service.rerank({ student_id: body.student_id, plan_id: body.plan_id, context: body.context, preview: body.preview }));
     }),
   );
 

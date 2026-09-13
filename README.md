@@ -10,12 +10,15 @@ Snowflake Cortex is the brain. `AI_TRANSCRIBE` turns speech into text, and the s
 flowchart LR
   subgraph IOS["ios/ (SwiftUI, iOS 17)"]
     APP["Tabs: UniMate, Today, Schedule, History"]
+    STT["On-device speech<br/>(client_transcript)"]
+    LA["UniMate widget extension<br/>focus Live Activity"]
     FIX["Bundled offline fixtures"]
   end
   subgraph API["api/ (Node + Express, port 3000)"]
     ROUTES["Routes + zod validation"]
-    SVC["UniMateService"]
+    SVC["PipService<br/>+ pipeline trace"]
     MEM["In-memory store + TS ranker<br/>source: fallback"]
+    CL["Claude extraction<br/>(ANTHROPIC_API_KEY)"]
   end
   subgraph SF["Snowflake PIP.APP"]
     STAGE["AUDIO_STAGE<br/>(SNOWFLAKE_SSE)"]
@@ -24,9 +27,12 @@ flowchart LR
     BP["BUILD_PLAN<br/>(SQL pre-rank + Cortex wording)"]
     TBL["PLANS, ACTIONS, TASKS, CAPTURES ...<br/>V_PLAN_HISTORY, V_TODAY_TIMETABLE, V_FREE_WINDOWS"]
   end
+  STT --> APP
   APP -- "JSON / multipart m4a" --> ROUTES --> SVC
   SVC -- "live mode" --> STAGE --> TR --> EX --> BP --> TBL
   SVC -. "MOCK_MODE, missing config, or any live error" .-> MEM
+  MEM -. "extraction, when configured" .-> CL
+  APP -- "Start now" --> LA
   APP -. "API unreachable" .-> FIX
 ```
 
@@ -66,13 +72,10 @@ Run these steps in order on a fresh clone.
    - **Claude in your region.** `claude-sonnet-4-5` is not hosted in every region. If the check in `03_functions.sql` picks `mistral-large2` or `llama3.1-8b` and you want Claude, run this as ACCOUNTADMIN, then re-run `03_functions.sql`: `ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';`
 4. **Seed the demo.** Run `npm run seed`. It re-anchors the six `demo-*` tasks to the scenario clock and stores the seeded Today Plan in Snowflake.
 5. **Start the API.** Run `npm run dev`. On boot it prints `UniMate API <mode> on http://<LAN IP>:3000`.
-   - **ElevenLabs speech:** set `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` in ignored `api/.env`. The app requests `POST /speech` and plays the returned MP3. Credentials stay on the API; missing configuration or provider failure uses the existing device voice. Mute and recording cancel speech.
-   - **Voice tuning:** defaults use Sarah (`EXAVITQu4vr4xnSDxMaL`), `eleven_flash_v2_5`, stability `0.4`, and speed `1.03`. Voice/model/stability/speed are configurable through the `ELEVENLABS_*` settings in `.env.example`. To restore the previous voice/model, set `ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb` and `ELEVENLABS_MODEL_ID=eleven_multilingual_v2`.
-   - **Capture speed:** `FAST_CAPTURE_PLAN=true` uses the existing Snowflake deterministic plan wording for plain dumps and generic “What should I do?” questions. Task extraction, ranking, persistence, and fallback still run; specific questions and follow-ups keep the full AI wording path. Set it to `false` to restore the previous path. Restart the API after changing environment settings. Capture logs report extraction and planning milliseconds without transcript content; these exclude voice upload/transcription and playback time.
 6. **Run the iOS app.** Open `ios/Pip/Pip.xcodeproj` in Xcode 16 or later.
    - **Xcode 15:** it cannot read this project format. Run `brew install xcodegen && cd ios/Pip && xcodegen generate` and open the regenerated project.
    - **API address:** set `defaultAPIBaseURL` in `ios/Pip/Pip/Config.swift` to `http://<laptop LAN IP>:3000`, using the address the API printed. The default `http://localhost:3000` only works in the Simulator. You can also change the address in the app under **Schedule → Server**.
-   - **Signing:** pick a team under Signing & Capabilities. If the bundle ID `com.pivothacks.pip` is taken, change it.
+   - **Signing:** pick your team under Signing & Capabilities for **both** the UniMate and PipWidgets targets. If the bundle ID `com.pivothacks.pip` is taken, change the user-defined `PIP_BUNDLE_ID` build setting on the project (Build Settings → User-Defined), not the Bundle Identifier field. PipWidgets uses `$(PIP_BUNDLE_ID).PipWidgets`, so its ID always starts with the app's.
    - **Run on the device.** The phone and the laptop must be on the same Wi-Fi network.
    - **Command-line build check (no signing):**
      ```sh
@@ -100,15 +103,19 @@ The API reads `api/.env`. That file is gitignored; never commit it.
 | `SNOWFLAKE_ACCOUNT` | empty | Account identifier, e.g. `orgname-accountname`, without `.snowflakecomputing.com` |
 | `SNOWFLAKE_USER` | empty | Login user |
 | `SNOWFLAKE_PASSWORD` | empty | Password |
+| `SNOWFLAKE_TOKEN` | empty | Programmatic access token; used instead of the password when set |
 | `SNOWFLAKE_WAREHOUSE` | empty | Warehouse; `01_schema.sql` creates `PIP_WH` |
 | `SNOWFLAKE_DATABASE` | `PIP` | Database created by `01_schema.sql` |
 | `SNOWFLAKE_SCHEMA` | `APP` | Schema created by `01_schema.sql` |
 | `SNOWFLAKE_ROLE` | empty (user's default role) | Role; it needs Cortex access |
-| `MOCK_MODE` | `false` | `true` runs the whole demo with no Snowflake. If `false` but any of ACCOUNT, USER, PASSWORD or WAREHOUSE is missing, the API also runs in mock mode. |
+| `MOCK_MODE` | `false` | `true` runs the whole demo with no Snowflake. If `false` but ACCOUNT, USER or WAREHOUSE is missing, or both PASSWORD and TOKEN are, the API also runs in mock mode. |
 | `PORT` | `3000` | HTTP port; the API listens on `0.0.0.0` |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. `debug` prints every SQL statement. |
-| `DEMO_NOW` | `13:13` in mock mode, real time in live mode | `HH:MM` freezes the scenario clock at that time today; `real` uses the real local time |
+| `DEMO_NOW` | Real time in both modes | `HH:MM` freezes the scenario clock at that time today; `real` uses the real local time |
 | `PIP_TIMEZONE` | the laptop's IANA zone | Zone for plan math and the Snowflake session `TIMEZONE` |
+| `ANTHROPIC_API_KEY` | empty (off) | Turns on Claude transcript extraction: tried before the heuristic parser in mock mode and the in-memory fallback, and after a failed or empty `EXTRACT_FROM_TRANSCRIPT` in live mode. Any error, timeout or invalid output uses the heuristic parser. `/health` reports it under `claude`. |
+| `PIP_CLAUDE_MODEL` | `claude-haiku-4-5` | Claude model for extraction |
+| `PIP_CLAUDE_TIMEOUT_MS` | `8000` | Budget for the single Claude request (no retries) before the heuristic parser answers |
 
 See `api/.env.example` for the authoritative list.
 
@@ -118,31 +125,33 @@ The sentence to say:
 
 > I have a 2 PM lab. I need to return headphones by 5 PM or lose the refund. My assignment is due tomorrow. I need groceries, and I have $35 until Friday. What should I do?
 
-1. **0:00. Open the app on the UniMate tab.** Today's CHEM 110 Lab block (2:00–5:00 PM) and the free-window pill "47 min free until CHEM 110 Lab, 2:00 PM" are visible.
-2. **0:05. Hold to talk and say the sentence.** Release when done.
-3. **0:15. The transcript card appears** with what Snowflake heard.
-4. **0:18. UniMate speaks do now: return the headphones.** The $79 refund is gone for good at 5:00 PM, and you are in Lab from 2:00 to 5:00. The 35-minute return fits in the 47 free minutes before the 2 PM lab, with 12 minutes to spare.
-5. **0:25. Open the Today tab** and walk the plan:
-   - return headphones (now)
-   - CHEM 110 Lab, 2:00–5:00 PM
-   - CS 101 assignment, 5:15–6:45 PM, after Lab
-   - groceries at 7:00 PM, under the $21 cap (60% of $35)
-   - sleep at 11:30 PM, marked with a balance-guard flag because sleep was pushed back twice
+1. **0:00. Open the app on the UniMate tab.** The free-window strip reads "47 min free until CHEM 110 Lab, 2:00 PM".
+2. **0:05. Hold to talk and say the sentence.** Release when done. (Or tap **Use demo sentence** and send.)
+3. **0:10. The "PIP IS WORKING" card reveals each stage** with the engine that actually ran it:
+   - **Heard you:** `Snowflake AI_TRANSCRIBE`, or `On-device speech (iOS)`
+   - **Pulled out tasks:** chips pop in for the return ($79, 5:00 PM), the assignment, groceries, "Lab 2:00 PM" and "$35 until Fri"
+   - **Ranked against 5 rules**, then **Wrote your plan**
 
-   Point at the source label: **Snowflake** or **Local fallback**.
-6. **0:35. Tap the chip "I only have 25 minutes."**
-   - The banner explains what changed: "Only 25 min: the 35-min headphones return won't fit before Lab ($79 at risk), so do now is the assignment outline."
-   - The return moves into Today with an at-risk flag, and do now becomes a 20-minute assignment outline with 5 minutes to spare before Lab.
-   - Moved items animate, and UniMate speaks the new do now.
-7. **0:48. Tap Start now.**
-8. **0:52. Open History → Decisions.** It shows the decision record: the capture plan, the 25-minute rerank plan with what changed, and the `start_now` action.
-9. **0:58 (optional). Open History → Pivot Log.**
+   Point at the engine pills: this is the AI doing the work, not a script.
+4. **0:18. UniMate speaks do now: return the headphones.** The card shows the stakes:
+   - a live countdown, "$79 refund gone in …"
+   - the cost-of-waiting sparkline, which jumps to 100% at 5:00 PM
+   - rule chips with **Loss**, **Class clash** and **Fits now** lit; tap one to show the evidence
+5. **0:25. Tap "What if this takes 10 min longer?"** A preview says whether do now would change. It is labelled "Preview only · your plan is unchanged".
+6. **0:30. Open the Today tab.** The **YOUR DAY** timeline shows: return headphones (NOW), CHEM 110 Lab 2:00–5:00 PM, CS 101 assignment 5:15–6:45 PM, groceries at 7:00 PM under the $21 cap, and sleep at 11:30 PM with the balance-guard flag. Point at the source label: **Snowflake** or **Local fallback**.
+7. **0:38. Switch the timeline's free-time control from Full window to 25 min.**
+   - The headphones return slides out of the timeline into the **Doesn't fit** tray: needs 35 min, you have 25, $79 at risk.
+   - Do now becomes the 20-minute assignment outline, the "What changed" banner explains why, and UniMate says it aloud.
+8. **0:48. Tap Start now.** The focus timer opens, and the task appears as a Live Activity on the Lock Screen and in the Dynamic Island (lock the phone to show it). Tap **Skip to end (demo)**, then **Done: what next?**. UniMate records it as done and replans out loud.
+9. **0:58. Hand a judge the phone** and let them say their own day. Free-form sentences need live Snowflake or `ANTHROPIC_API_KEY`. History → Decisions keeps every capture, rerank and action.
 
 Before you present:
 
 - ☐ `npm run dev` is running on the laptop, and the phone points at the printed LAN IP
-- ☐ `GET /health` shows the expected `mode` (`live` or `mock`) and a filled `cortex` block (`complete`, `complete_model`, `transcribe`)
+- ☐ `GET /health` shows the expected `mode` (`live` or `mock`), a filled `cortex` block (`complete`, `complete_model`, `transcribe`), and `claude.configured: true` if you rely on Claude for free-form sentences
 - ☐ Demo data is reset: `POST /demo/reset` for the in-memory store, or `npm run seed` (or re-run `05_seed.sql`) for Snowflake
+- ☐ On the phone, allow Microphone and Speech Recognition for UniMate, and keep Live Activities on (Settings → UniMate)
+- ☐ An Enhanced or Premium English voice is downloaded under Settings → Accessibility → Spoken Content → Voices, so UniMate doesn't use the robotic default
 - ☐ Phone volume up, silent switch off, and UniMate not muted in the app
 - ☐ The backup screen recording of the full demo is ready to play
 
@@ -150,32 +159,33 @@ Before you present:
 
 **`MOCK_MODE=true`**, or live mode without Snowflake config:
 
-- **Store:** everything runs from an in-memory store seeded with the CONTRACT section 5 demo: profile, timetable, six open tasks, a seeded plan and pivots 1 and 2.
-- **Clock:** pinned at 13:13 today unless `DEMO_NOW` is set.
-- **Voice:** `/captures/voice` ignores the audio. It returns the demo transcript, or "I only have 25 minutes." when `followup_plan_id` is present.
-- **Plans:** plans come from the TypeScript ranker with hand-written demo wording on top. Inputs that differ from the exact demo get template wording.
+- **Store:** tasks, timetable, profile and history are partitioned by student ID. New students start empty. Only `student_id=demo` gets the CONTRACT section 5 seed data.
+- **Clock:** real time by default; set `DEMO_NOW=13:13` explicitly for the scripted demo.
+- **Voice:** the in-memory backend uses `client_transcript`. Without one, normal students receive `needs_text: true`; canned voice transcripts are limited to the explicit demo identity.
+- **Extraction:** Claude when `ANTHROPIC_API_KEY` is set, otherwise the heuristic parser. The pipeline card names whichever ran.
+- **Plans:** the TypeScript ranker scores extracted tasks. Hand-written demo wording is restricted to the explicit demo identity and matching scenario.
 - **Source:** every response reports `source: "fallback"`.
 - **Reset:** `POST /demo/reset` restores the baseline and keeps pivot-log entries.
 
-**iOS offline fixtures** are the 9 JSON files in `ios/Pip/Pip/Resources/Offline/`, generated by `npm run fixtures`. The app uses them only when the API is unreachable:
+**iOS offline fixtures** are the 9 JSON files in `ios/Pip/Pip/Resources/Offline/`, generated by `npm run fixtures`. Only a Debug build launched with `--pip-demo` can use them:
 - At launch it checks `/health` with a 4-second timeout.
-- If a live call fails with a network error, the app retries it once offline and stays offline.
-- In offline mode, captures, reranks and actions still show up in History.
+- In normal use, a network error is shown to the user and typed input remains for retry. The next attempt contacts the API again.
+- The shared context/pivot history and demo controls are visible only with the explicit debug demo flag.
 
 **Deliberately not built:**
 - calendar OAuth or sync (the timetable is edited on the Schedule tab)
 - maps and travel times
 - live prices or bank data
-- push notifications and reminders
-- authentication and accounts (a single student, `demo`)
-- multiple users
+- push notifications (the focus Live Activity and reminders are local to the phone)
+- authentication and accounts (installation IDs partition data but are not authenticated)
+- authenticated cross-device accounts
 - Android
 - a hosted API (it runs on the presenter's laptop)
 - embedding-based task matching (tasks are merged with `JAROWINKLER_SIMILARITY` or the LLM's `existing_task_id`)
 
 ## Which Cortex functions verified
 
-**None of them were verified from the build machine.** No Snowflake credentials were available while building, so none of the SQL has run on Snowflake. The procedure logic was exercised in Node against a fake Snowflake that answers with the demo data, and it reproduces CONTRACT section 5 for both the 13:13 plan and the 25-minute rerank. The iOS app was also not compiled on the build machine, which had no Xcode.
+**Local validation (2026-09-13):** Snowflake authentication and Cortex functions were verified with the configured account, and live brain-dump captures and follow-ups were exercised. See [the brain-dump audit](docs/BRAIN_DUMP_AUDIT.md) for results, the observed timeout, and scope. The iOS app still requires compilation on a Mac with Xcode.
 
 | Function | Used for | Verified from build machine | Verified at venue? |
 |---|---|---|---|
@@ -205,7 +215,7 @@ Audio handling:
 
 ## Assumptions
 
-- **Scenario clock.** Mock mode pins 13:13 today, which gives "47 min free until CHEM 110 Lab, 2:00 PM". The pin applies whenever the effective mode is mock, including `MOCK_MODE=false` without Snowflake config. Record timestamps (`created_at`) always use the real wall clock.
+- **Scenario clock.** Both modes use real time unless `DEMO_NOW=HH:MM` explicitly pins the clock. Record timestamps (`created_at`) always use the real wall clock.
 - **Today's lab exists every day.** The demo CHEM 110 Lab (14:00–17:00, Science Hall 204) is added on today's weekday, weekends included, so the demo works on any day.
 - **Days use ISO numbering:** 1 = Monday through 7 = Sunday (`DAYOFWEEKISO`).
 - **Time zones.**
@@ -245,7 +255,7 @@ Audio handling:
   - With no next block today, `next` is the second-best task that fits.
   - With no next block and under an hour free, the label reads "{m} min free today".
 - **Lenient API inputs.**
-  - GET routes default `student_id` to `demo`.
+  - Student-specific GET routes require `student_id`; omission or blank input returns 400.
   - An action with an unknown `plan_id` attaches to the latest plan.
   - A `#cont` suffix on `task_id` is stripped.
   - An unknown student gets a copy of the demo baseline.
@@ -262,14 +272,14 @@ Audio handling:
 ## Fallback chain
 
 1. **Live audio.** `AI_TRANSCRIBE` on the staged m4a.
-   Steps down when the upload or transcription fails after the `.mp4` retry, or the transcript is empty (`needs_text: true`).
+   Steps down to the on-device transcript the app sent (`client_transcript`) when the upload or transcription fails after the `.mp4` retry or returns nothing. Only without one does the response carry `needs_text: true`.
 2. **Typed input.** The student types into the transcript card, or taps "Use demo sentence".
    Steps down when there is no working microphone or voice upload, or the presenter prefers not to speak.
 3. **Live plan.** `EXTRACT_FROM_TRANSCRIPT` and `BUILD_PLAN` with Cortex wording; source `snowflake`.
    Steps down when every Cortex completion attempt fails or its output cannot be parsed twice.
 4. **Deterministic plan.** First, the SQL pre-rank inside Snowflake (model `sql-prerank`, source `snowflake`).
-   If the Snowflake call itself errors, or the connection or config is missing, the API runs the TypeScript ranker in memory (source `fallback`).
-5. **Mock plan.** `MOCK_MODE=true` serves the in-memory demo. If the phone cannot reach the API at all, the app serves its bundled offline fixtures.
+   If the Snowflake call itself errors, or the connection or config is missing, the API runs the TypeScript ranker in memory (source `fallback`). Its tasks come from Claude when `ANTHROPIC_API_KEY` is set, or from the heuristic parser otherwise, and the pipeline card shows which.
+5. **Mock plan.** `MOCK_MODE=true` uses the in-memory ranker on submitted input. Use `student_id=demo` for seeded data. A normal phone build requires the API; fixtures require `--pip-demo` in a Debug build.
    Choose this before presenting if venue Wi-Fi or Snowflake is unreliable.
 6. **Backup screen recording** of the full 60-second demo.
    Use it when the phone, laptop or projector setup fails.
@@ -293,7 +303,7 @@ Pivot 3:
 | cut | Prep-step durations the student didn't supply, success probabilities, scenario persistence |
 | sentence | We made available time before the next class a hard planning constraint, so UniMate changes what it recommends instead of just showing the schedule. |
 
-Pivot 3 demo (fixture `api/src/demo/pivot3.ts`, simulated Monday 12:40 PM, America/Toronto): on Today, switch **Update context** from 48 min to 25 min. At 48 min the do now is the 40-minute return outing (back by 1:20 PM; after Lab it would finish at 5:15 PM, past the 5:00 PM cutoff). At 25 min the outing is rejected for that window and do now becomes the 20-minute assignment start. These plans are computed by the API's TypeScript planner and labelled `local_fallback`, including in live mode. The context planner does not run in Snowflake yet.
+Pivot 3 demo (fixture `api/src/demo/pivot3.ts`, simulated Monday 12:40 PM, America/Toronto): on the Today tab before any capture, switch the free-time picker from 48 min to 25 min. At 48 min the do now is the 40-minute return outing (back by 1:20 PM; after Lab it would finish at 5:15 PM, past the 5:00 PM cutoff). At 25 min the outing is rejected for that window and do now becomes the 20-minute assignment start. These plans are computed by the API's TypeScript planner and labelled `local_fallback`, including in live mode. The context planner does not run in Snowflake yet.
 
 Pivot 4 (template):
 
@@ -324,12 +334,14 @@ SELECT 'pivot-3', 3, '<revealed>', '<assumption_changed>', '<response>', '<cut>'
 
 Every response includes `source`. Types are in `api/src/types.ts`; semantics are in `docs/CONTRACT.md`.
 
+Captures and reranks also return `pipeline`: four stages (`transcribe`, `extract`, `rank`, `wording`), each with the engine that actually ran (for example `Snowflake AI_TRANSCRIBE`, `Claude · claude-haiku-4-5`, `Heuristic parser`, `Snowflake SQL pre-rank`, `Templates`), a status (`ok`, `fallback`, `skipped`), measured `ms`, a one-line detail, and chips for the extracted tasks and constraints.
+
 | Method and path | Body / query | Returns |
 |---|---|---|
-| GET `/health` | `?refresh=1` re-verifies Cortex | mode, scenario `now`, Snowflake status, Cortex status |
-| POST `/captures/voice` | multipart: `audio` (m4a), `student_id`, optional `followup_plan_id` | capture, transcript, `needs_text`, open tasks, plan (+ `diff` on follow-up) |
+| GET `/health` | `?refresh=1` re-verifies Cortex | mode, scenario `now`, Snowflake status, Cortex status, `claude {configured, model}` |
+| POST `/captures/voice` | multipart: `audio` (m4a), `student_id`, optional `followup_plan_id`, optional `client_transcript` (the app's on-device speech result) | capture, transcript, `needs_text`, open tasks, plan (+ `diff` on follow-up), `pipeline` |
 | POST `/captures/text` | `{student_id, text, followup_plan_id?}` | same as voice |
-| POST `/plans/rerank` | `{student_id, plan_id, context:{available_minutes?, cash_available?, question?}}` | plan, `previous_plan_id`, `diff` |
+| POST `/plans/rerank` | `{student_id, plan_id, context:{available_minutes?, cash_available?, question?}, preview?}` | plan, `previous_plan_id`, `diff`, `pipeline`. `preview: true` computes the same plan and diff but saves nothing; its `plan_id` is `preview-<uuid>`. |
 | GET `/timetable/today` | `?student_id=` | today's blocks |
 | GET `/timetable` | `?student_id=` | full week |
 | PUT `/timetable` | `{student_id, blocks:[{day_of_week, title, starts_at, ends_at, location}]}` | full week (replaces it) |
@@ -354,6 +366,22 @@ curl -X POST http://localhost:3000/captures/text \
 curl -X POST http://localhost:3000/plans/rerank \
   -H 'Content-Type: application/json' \
   -d '{"student_id":"demo","plan_id":"<plan_id>","context":{"question":"I only have 25 minutes"}}'
+
+# 4. Preview "what if I only had 25 minutes" without saving a plan or a History entry
+curl -X POST http://localhost:3000/plans/rerank \
+  -H 'Content-Type: application/json' \
+  -d '{"student_id":"demo","plan_id":"<plan_id>","context":{"available_minutes":25},"preview":true}'
+
+# 5. Voice capture with the on-device transcript (used when AI_TRANSCRIBE fails, and instead of the canned transcript in mock mode)
+curl -X POST http://localhost:3000/captures/voice \
+  -F student_id=demo \
+  -F 'client_transcript=I need to do laundry tonight.' \
+  -F audio=@capture.m4a
+
+# 6. Show only the pipeline trace (needs jq)
+curl -s -X POST http://localhost:3000/captures/text \
+  -H 'Content-Type: application/json' \
+  -d '{"student_id":"demo","text":"I need groceries. What should I do?"}' | jq '.pipeline[] | {label, engine, status, ms, detail}'
 ```
 
 ## Troubleshooting

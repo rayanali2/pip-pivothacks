@@ -7,6 +7,7 @@ import type {
   HistoryResponse,
   PivotLogCreateRequest,
   PivotLogCreateResponse,
+  PipelineStage,
   PivotLogResponse,
   ProfileResponse,
   PutProfileRequest,
@@ -21,10 +22,21 @@ import type { Clock } from './clock';
 import { errorMessage, log } from './log';
 import type { Backend, CaptureTextInput, CaptureVoiceInput, WarmPingResponse } from './backends/backend';
 import type { MemoryBackend } from './backends/memory';
+import { markPipelineFallback } from './pipeline';
+
+/** Short reason prefixed to the first pipeline stage when memory answered for a failed live call. */
+function fallbackReason(err: unknown): string {
+  return err instanceof Error && err.name === 'TimeoutError' ? 'Snowflake timed out' : 'Snowflake unavailable';
+}
+
+function tracedFallback<T extends { pipeline: PipelineStage[] }>(value: T, reason: string): T {
+  return { ...value, pipeline: markPipelineFallback(value.pipeline, reason) };
+}
 
 /**
  * mock: everything is served by the in-memory backend (source 'fallback').
  * live: the live backend first; on ANY error, log a warning and run the same operation on memory (source 'fallback').
+ * Capture and rerank pipelines from that memory run are marked 'fallback' with the reason on the first stage.
  */
 export class UniMateService {
   readonly mode: Mode;
@@ -41,23 +53,25 @@ export class UniMateService {
     return this.memory.clock;
   }
 
-  private async run<T>(op: string, fn: (backend: Backend) => Promise<T>): Promise<T> {
+  private async run<T>(op: string, fn: (backend: Backend) => Promise<T>, onFallback?: (value: T, reason: string) => T): Promise<T> {
     if (this.mode === 'mock' || !this.live) return fn(this.memory);
     try {
       return await fn(this.live);
     } catch (err) {
       log.warn(`live ${op} failed, using local fallback: ${errorMessage(err)}`);
-      return fn(this.memory);
+      const value = await fn(this.memory);
+      return onFallback ? onFallback(value, fallbackReason(err)) : value;
     }
   }
 
   async health(refresh: boolean): Promise<HealthResponse> {
+    const claude = { ...this.memory.claudeStatus };
     if (this.mode === 'mock' || !this.live) {
       const h = await this.memory.health(refresh);
-      return { ...h, mode: this.mode === 'mock' ? 'mock' : 'live' };
+      return { ...h, mode: this.mode === 'mock' ? 'mock' : 'live', claude };
     }
     try {
-      return await this.live.health(refresh);
+      return { ...(await this.live.health(refresh)), claude };
     } catch (err) {
       const message = errorMessage(err);
       log.warn(`live health failed: ${message}`);
@@ -67,20 +81,21 @@ export class UniMateService {
         mode: 'live',
         snowflake: { ...h.snowflake, connected: false, error: message },
         cortex: { ...h.cortex, errors: [message] },
+        claude,
       };
     }
   }
 
   captureText(input: CaptureTextInput): Promise<CaptureResponse> {
-    return this.run('captureText', (b) => b.captureText(input));
+    return this.run('captureText', (b) => b.captureText(input), tracedFallback);
   }
 
   captureVoice(input: CaptureVoiceInput): Promise<CaptureResponse> {
-    return this.run('captureVoice', (b) => b.captureVoice(input));
+    return this.run('captureVoice', (b) => b.captureVoice(input), tracedFallback);
   }
 
   rerank(req: RerankRequest): Promise<RerankResponse> {
-    return this.run('rerank', (b) => b.rerank(req));
+    return this.run('rerank', (b) => b.rerank(req), tracedFallback);
   }
 
   timetableToday(studentId: string): Promise<TodayTimetableResponse> {

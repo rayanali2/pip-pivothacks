@@ -9,6 +9,7 @@ struct TodayPlanView: View {
         NavigationStack {
             content
                 .navigationTitle("Today")
+                .navigationBarTitleDisplayMode(.inline)
                 .uniMateScreen()
                 .sheet(isPresented: $showReminders) { UniMateRemindersView(plan: model.currentPlan) }
                 .toolbar {
@@ -38,14 +39,26 @@ struct TodayPlanView: View {
                 }
         } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    ContextSection()
-                    UniMateStatusView(symbol: "text.bubble", title: "A fresh start", detail: "Tell UniMate your day to build a plan.")
-                        .uniMateCard()
-                    Button("Talk to UniMate") { model.selectedTab = .home }
+                VStack(alignment: .leading, spacing: UniMateDesign.gap) {
+                    if Config.isDemoMode { ContextSection() }
+                    VStack(spacing: 10) {
+                        PenguinView(state: .idle, size: 60)
+                            .accessibilityHidden(true)
+                        Text("No plan yet").font(UniMateDesign.heading)
+                        Text("Tell UniMate about your day to get one next step.")
+                            .font(.subheadline).foregroundStyle(UniMateDesign.secondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button { model.selectedTab = .home } label: {
+                            Label("Talk to UniMate", systemImage: "mic.fill")
+                        }
                         .buttonStyle(PrimaryButtonStyle())
+                        .padding(.top, 6)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .uniMateCard()
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, UniMateDesign.page)
                 .padding(.vertical, 16)
             }
         }
@@ -61,8 +74,7 @@ private struct PlanScrollView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-
+            VStack(alignment: .leading, spacing: UniMateDesign.gap) {
                 header
 
                 if let diff = model.lastDiff {
@@ -72,7 +84,7 @@ private struct PlanScrollView: View {
                 }
 
                 if model.uniMateState == .thinking {
-                    UniMateStatusView(symbol: "", title: "Updating…", detail: "Checking your new window.", loading: true)
+                    UniMateStatusView(symbol: "", title: "Updating your plan", detail: "Checking what fits now", loading: true)
                         .uniMateCard()
                 }
 
@@ -85,46 +97,41 @@ private struct PlanScrollView: View {
                 } label: {
                     Label("Save & reminders", systemImage: "square.and.arrow.down")
                         .font(.subheadline.weight(.medium))
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
 
                 answerAndWarnings
 
-                DisclosureGroup {
-                    ContextSection().padding(.top, 12)
-                } label: {
-                    Label("Time check", systemImage: "clock.arrow.circlepath")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .uniMateCard()
-
-                if let next = plan.next {
-                    PlanSectionList(title: "Next", items: [next], planNow: plan.reasoning.now)
-                }
-
-                if !plan.today.isEmpty {
-                    PlanSectionList(title: "Today", items: plan.today, planNow: plan.reasoning.now)
-                }
+                // The timeline's free-time control replaces the separate context check, so Today has one do-now.
+                DayTimelineView(plan: plan)
 
                 if !plan.canWait.isEmpty {
                     PlanSectionList(title: "Can wait", items: plan.canWait, planNow: plan.reasoning.now)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+            .padding(.horizontal, UniMateDesign.page)
+            .padding(.vertical, 12)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: plan.planId)
         }
     }
 
     private var header: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("YOUR FLOW").font(.caption2.weight(.bold)).tracking(1.6)
-                    .foregroundStyle(UniMateDesign.secondary)
-                Text("\(plan.allItems.filter { $0.kind != .fixedBlock }.count) tasks · \(plan.allItems.filter { $0.kind == .fixedBlock }.count) fixed")
-                    .font(.subheadline.weight(.medium))
+        UniMateFlowLayout(spacing: 8, lineSpacing: 8) {
+            if let text = plan.freeWindowText {
+                FreeWindowPill(text: text)
             }
-            Spacer()
+            Text("\(plan.allItems.filter { $0.kind != .fixedBlock }.count) tasks · \(plan.allItems.filter { $0.kind == .fixedBlock }.count) fixed")
+                .font(.footnote.weight(.medium).monospacedDigit())
+                .foregroundStyle(UniMateDesign.secondary)
+                .padding(.vertical, 6)
+            if model.uniMateState == .thinking {
+                ProgressView()
+                    .controlSize(.small)
+                    .padding(.vertical, 6)
+            }
             SourceLabel(source: model.lastSource)
+                .padding(.vertical, 4)
         }
     }
 
@@ -133,7 +140,12 @@ private struct PlanScrollView: View {
         if !plan.reasoning.warnings.isEmpty {
             DisclosureGroup {
                 ForEach(Array(plan.reasoning.warnings.enumerated()), id: \.offset) { pair in
-                    Text(pair.element.text).font(.footnote).padding(.vertical, 5)
+                    Label(pair.element.text, systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(UniMateDesign.warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 5)
                 }
             } label: {
                 PlanTag(text: "\(plan.reasoning.warnings.count) risk alert\(plan.reasoning.warnings.count == 1 ? "" : "s")", symbol: "exclamationmark.triangle", tint: UniMateDesign.warning)
@@ -144,18 +156,31 @@ private struct PlanScrollView: View {
             PlanDisclosure(title: "Plan notes", text: answer)
         }
     }
-
 }
 
 struct WhatChangedBanner: View {
     let headline: String
 
     var body: some View {
-        PlanDisclosure(title: "Plan updated", text: headline, symbol: "arrow.triangle.2.circlepath")
-            .padding(.horizontal, 14).padding(.vertical, 4)
-            .background(UniMateDesign.mist, in: RoundedRectangle(cornerRadius: 14))
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.footnote.weight(.bold))
+                .foregroundStyle(UniMateDesign.accent)
+                .frame(width: 30, height: 30)
+                .background(UniMateDesign.surface, in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text("What changed")
+                    .uniMateEyebrow(UniMateDesign.accent)
+                Text(headline)
+                    .font(.subheadline.weight(.medium))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(UniMateDesign.mist, in: RoundedRectangle(cornerRadius: UniMateDesign.radiusSmall, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
-
 }
 
 /// Shared by Home and Today; actions still use the original AppModel path.
@@ -172,49 +197,35 @@ struct DoNowCard: View {
         model.startNowConfirmation == item.itemId
     }
 
-    private var dueText: String? {
-        guard let dueAt = item.dueAt, let time = DateFormatting.smartTime(dueAt, relativeTo: planNow) else {
-            return nil
-        }
-        var text = "Due \(time)"
-        if let relative = DateFormatting.relative(dueAt, from: planNow) {
-            text += " · \(relative)"
-        }
-        if let money = item.moneyAtRisk, money > 0 {
-            text += " · \(MoneyFormatting.dollars(money)) at risk"
-        }
-        return text
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Do this now", systemImage: "sparkle")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-                Spacer()
-                if let flag = item.flag {
-                    FlagPill(flag: flag)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center) {
+                    eyebrow
+                    Spacer(minLength: 8)
+                    if let flag = item.flag { FlagPill(flag: flag) }
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    eyebrow
+                    if let flag = item.flag { FlagPill(flag: flag) }
                 }
             }
 
             Text(item.title)
-                .font(.system(.title, design: .rounded, weight: .bold))
+                .font(UniMateDesign.title)
                 .fixedSize(horizontal: false, vertical: true)
+
+            DoNowStakesStrip(item: item, planNow: planNow)
 
             Text(item.action)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text(item.why)
-                .font(.subheadline)
-                .foregroundStyle(UniMateDesign.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let dueText {
-                Text(dueText)
-                    .font(.footnote.monospacedDigit())
-                    .foregroundStyle(UniMateDesign.secondary)
+            // Due time and money at risk live in DoNowStakesStrip above.
+            if let minutes = item.estMinutes {
+                UniMateFlowLayout {
+                    UniMatePill(text: "\(minutes) min", systemImage: "timer")
+                }
             }
 
             Button {
@@ -224,14 +235,22 @@ struct DoNowCard: View {
             }
             .buttonStyle(PrimaryButtonStyle())
             .disabled(isStarted)
-            .padding(.top, 4)
+            .padding(.top, 2)
 
             if isStarted {
-                Label("Started · saved to History", systemImage: "checkmark")
-                    .font(.footnote)
-                    .foregroundStyle(UniMateDesign.secondary)
+                Label("Saved to History", systemImage: "checkmark.circle.fill")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(UniMateDesign.positive)
                     .transition(.opacity)
             }
+
+            OverrunPreviewButton(item: item)
+
+            // Reason sits under the action so Start stays above the fold on small iPhones.
+            Text(item.why)
+                .font(.subheadline)
+                .foregroundStyle(UniMateDesign.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             if item.opensDetail {
                 NavigationLink {
@@ -239,18 +258,24 @@ struct DoNowCard: View {
                 } label: {
                     HStack(spacing: 4) {
                         Text("Why this is first")
-                        Image(systemName: "chevron.right")
+                        Image(systemName: "chevron.right").imageScale(.small)
                     }
-                    .font(.footnote.weight(.medium))
-                .frame(minHeight: 44)
+                    .font(.footnote.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 44)
                 }
             }
         }
         .uniMateCard(emphasized: true)
         .overlay {
-            RoundedRectangle(cornerRadius: UniMateDesign.radius)
+            RoundedRectangle(cornerRadius: UniMateDesign.radius, style: .continuous)
                 .strokeBorder(isHighlighted ? UniMateDesign.accent : .clear, lineWidth: 2)
         }
+    }
+
+    private var eyebrow: some View {
+        Label("Do this now", systemImage: "sparkle")
+            .labelStyle(UniMateCompactLabelStyle())
+            .uniMateEyebrow(UniMateDesign.accent)
     }
 }
 
@@ -261,21 +286,36 @@ private struct PlanSectionList: View {
     let planNow: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(title).font(UniMateDesign.heading)
-                Spacer()
-                Text("\(items.count)").font(.caption.weight(.semibold))
-                    .foregroundStyle(UniMateDesign.secondary)
-            }
-            .padding(.bottom, 10)
-
-            ForEach(items) { item in
-                VStack(spacing: 0) {
-                    row(for: item)
+                if items.count > 1 {
+                    Text("\(items.count)")
+                        .font(.caption.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(UniMateDesign.secondary)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(UniMateDesign.mist, in: Capsule())
                 }
-                .transition(.opacity.combined(with: .move(edge: .leading)))
+                Spacer()
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+
+            VStack(spacing: 0) {
+                ForEach(items) { item in
+                    VStack(spacing: 0) {
+                        if item.itemId != items.first?.itemId {
+                            Divider().padding(.leading, 58)
+                        }
+                        row(for: item)
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .leading)))
+                }
+            }
+            .background(UniMateDesign.surface)
+            .clipShape(RoundedRectangle(cornerRadius: UniMateDesign.radius, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: UniMateDesign.radius, style: .continuous).strokeBorder(UniMateDesign.line) }
         }
     }
 
@@ -290,12 +330,21 @@ private struct PlanSectionList: View {
             }
             .buttonStyle(.plain)
         } else {
+            // Rows without a detail page expand in place; the row itself stays compact.
             DisclosureGroup {
-                Text(item.action).font(.subheadline).padding(.vertical, 6)
-                Text(item.why).font(.footnote).foregroundStyle(UniMateDesign.secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(item.action).font(.subheadline)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(item.why).font(.footnote).foregroundStyle(UniMateDesign.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 58)
+                .padding(.bottom, 12)
             } label: {
                 PlanRow(item: item, planNow: planNow, highlighted: highlighted, showsChevron: false)
             }
+            .padding(.trailing, 14)
         }
     }
 }
@@ -308,29 +357,44 @@ struct PlanRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            TaskGlyph(category: item.category, fixed: item.kind == .fixedBlock)
-            VStack(alignment: .leading, spacing: 6) {
-                Text(item.kind == .fixedBlock ? "FIXED" : item.category?.label.uppercased() ?? "TASK")
-                    .font(.caption2.weight(.bold)).tracking(0.8).foregroundStyle(UniMateDesign.secondary)
-                Text(item.title).font(.body.weight(.semibold)).foregroundStyle(UniMateDesign.ink)
-                Text(item.timeLabel(relativeTo: planNow) ?? "When you have space")
-                    .font(.footnote.monospacedDigit()).foregroundStyle(UniMateDesign.accent)
-                if let flag = item.flag { FlagPill(flag: flag) }
+            TaskGlyph(category: item.category, fixed: item.kind == .fixedBlock, size: 32)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(item.kind == .fixedBlock ? "Fixed class" : "Flexible task")
+            VStack(alignment: .leading, spacing: 5) {
+                Text(item.kind == .fixedBlock ? "Fixed" : item.category?.label ?? "Task")
+                    .uniMateEyebrow()
+                Text(item.title).font(.subheadline.weight(.semibold)).foregroundStyle(UniMateDesign.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                UniMateFlowLayout {
+                    Text(item.timeLabel(relativeTo: planNow) ?? "Anytime")
+                        .font(.footnote.weight(.medium).monospacedDigit()).foregroundStyle(UniMateDesign.accent)
+                        .padding(.vertical, 4)
+                    if let flag = item.flag { FlagPill(flag: flag) }
+                }
+                // Rows without a detail page show action and reason in their disclosure instead.
+                if item.opensDetail {
+                    Text(item.why).font(.footnote).foregroundStyle(UniMateDesign.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if item.kind == .fixedBlock {
+                        Text(item.action).font(.footnote).foregroundStyle(UniMateDesign.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
                 if highlighted {
-                    Label("Moved", systemImage: "arrow.up.arrow.down")
+                    Label("Updated", systemImage: "arrow.up.arrow.down")
                         .font(.caption.weight(.semibold)).foregroundStyle(UniMateDesign.accent)
                 }
             }
             Spacer(minLength: 0)
             if showsChevron {
                 Image(systemName: "chevron.right").font(.caption.weight(.semibold))
-                    .foregroundStyle(UniMateDesign.secondary).padding(.top, 10)
+                    .foregroundStyle(UniMateDesign.secondary).padding(.top, 9)
             }
         }
-        .padding(16)
-        .background(highlighted ? UniMateDesign.mist : Color.white, in: RoundedRectangle(cornerRadius: 18))
-        .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(UniMateDesign.line) }
-        .padding(.vertical, 5)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(highlighted ? UniMateDesign.mist : Color.clear)
         .contentShape(Rectangle())
     }
 }
@@ -369,16 +433,20 @@ private struct FollowUpBar: View {
                 .padding(.horizontal, 16)
             }
 
-            HStack(alignment: .center, spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
                 TextField("Adjust your plan…", text: $text, axis: .vertical)
                     .lineLimit(1...3)
                     .focused($focused)
                     .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
+                    .padding(.vertical, 10)
                     .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
                             .fill(Color.uniMateField)
                     )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .strokeBorder(UniMateDesign.fieldLine)
+                    }
 
                 HoldToTalkButton(
                     isListening: model.uniMateState == .listening && model.isFollowUpRecording,
@@ -393,22 +461,28 @@ private struct FollowUpBar: View {
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 32))
+                        .foregroundStyle(UniMateDesign.accent)
                         .frame(width: 44, height: 44)
                 }
                 .disabled(trimmed.isEmpty || model.isBusy)
+                .opacity(trimmed.isEmpty || model.isBusy ? 0.4 : 1)
                 .accessibilityLabel("Send follow-up")
             }
             .padding(.horizontal, 16)
         }
         .padding(.vertical, 10)
         .background(UniMateDesign.background)
+        .overlay(alignment: .top) {
+            Rectangle().fill(UniMateDesign.line).frame(height: 1)
+        }
     }
 
     private func send() {
         let question = trimmed
         guard !question.isEmpty else { return }
-        model.followUp(text: question)
-        text = ""
+        model.followUp(text: question) {
+            if text.trimmingCharacters(in: .whitespacesAndNewlines) == question { text = "" }
+        }
         focused = false
     }
 }
@@ -429,15 +503,19 @@ private struct TodayFocusCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Label(started ? "IN MOTION" : "UP FIRST", systemImage: started ? "checkmark.circle.fill" : "sparkle")
-                    .font(.caption.weight(.bold)).tracking(1)
-                    .foregroundStyle(started ? UniMateDesign.positive : UniMateDesign.accent)
+                Label(started ? "In motion" : "Do this now", systemImage: started ? "checkmark.circle.fill" : "sparkle")
+                    .labelStyle(UniMateCompactLabelStyle())
+                    .uniMateEyebrow(started ? UniMateDesign.positive : UniMateDesign.accent)
                 Spacer()
                 TaskGlyph(category: item.category, size: 42)
             }
-            Text(item.title).font(.system(.title, design: .rounded, weight: .bold))
+            Text(item.title).font(UniMateDesign.title)
                 .fixedSize(horizontal: false, vertical: true)
-            TaskMetadata(item: item, now: plan.reasoning.now)
+            DoNowStakesStrip(item: item, planNow: plan.reasoning.now)
+            // The stakes countdown already shows due time and money at risk; tags only fill in without a deadline.
+            if item.dueAt == nil {
+                TaskMetadata(item: item, now: plan.reasoning.now)
+            }
             if let available, let used = PlanVisuals.windowMinutes(item) {
                 WindowFitView(used: used, available: available)
             }
@@ -449,6 +527,7 @@ private struct TodayFocusCard: View {
                 Label(started ? "Started" : "Start now", systemImage: started ? "checkmark" : "play.fill")
             }
             .buttonStyle(PrimaryButtonStyle()).disabled(started)
+            OverrunPreviewButton(item: item)
             if item.opensDetail {
                 NavigationLink {
                     TaskDetailView(item: item, task: model.task(for: item), planNow: plan.reasoning.now)
@@ -458,7 +537,9 @@ private struct TodayFocusCard: View {
                         Spacer()
                         Image(systemName: "arrow.up.right")
                     }
-                    .font(.subheadline.weight(.medium)).frame(minHeight: 36)
+                    .font(.subheadline.weight(.medium))
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
             } else {
                 PlanDisclosure(title: "Next step", text: item.action)

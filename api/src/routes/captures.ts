@@ -25,7 +25,14 @@ export function capturesRouter(service: UniMateService): Router {
       const fields = parseInput(captureVoiceFieldsSchema, req.body);
       const file = req.file;
       const audio = file ? { buffer: file.buffer, originalname: file.originalname, mimetype: file.mimetype } : null;
-      res.json(await service.captureVoice({ student_id: fields.student_id, audio, followup_plan_id: fields.followup_plan_id }));
+      res.json(
+        await service.captureVoice({
+          student_id: fields.student_id,
+          audio,
+          followup_plan_id: fields.followup_plan_id,
+          client_transcript: fields.client_transcript,
+        }),
+      );
     }),
   );
 

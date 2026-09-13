@@ -38,6 +38,11 @@ const DEFAULT_EST: Record<Category, number> = {
   rest: 480,
 };
 
+/** Estimate for a new task with no stated duration: the category default (a nap is 30 min). */
+export function defaultEstimateMinutes(category: Category, rawText: string): number {
+  return category === 'rest' && /\bnap\b/i.test(rawText) ? 30 : DEFAULT_EST[category];
+}
+
 const WEEKDAYS: Record<string, number> = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7 };
 
 const QUESTION_START = /^(what|should|how|why|when|which|where|who|can|could|would|is it|do i|am i)\b/i;
@@ -399,7 +404,7 @@ export function heuristicExtract(text: string, now: Date, openTasks: readonly Ta
       tasks.push({
         ...draftBase,
         merge_into: mergeInto,
-        est_minutes: mergeInto ? explicitEst : (explicitEst ?? (cat === 'rest' && /\bnap\b/i.test(clause) ? 30 : DEFAULT_EST[cat])),
+        est_minutes: mergeInto ? explicitEst : (explicitEst ?? defaultEstimateMinutes(cat, clause)),
       });
     }
   }

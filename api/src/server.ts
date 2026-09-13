@@ -7,6 +7,7 @@ import { LiveBackend } from './backends/live';
 import { preloadSnowflakeSdk } from './snowflake/client';
 import { UniMateService } from './service';
 import { createApp } from './app';
+import { extractorFromConfig } from './llm/extractor';
 
 const WARM_PING_MS = 4 * 60 * 1000;
 
@@ -23,13 +24,16 @@ function lanAddresses(): string[] {
 async function main(): Promise<void> {
   const config = getConfig();
   const clock = createClock({ demoNow: config.demoNow, mode: config.mode });
-  const memory = new MemoryBackend({ clock, snowflakeConfigured: config.snowflakeConfigured });
+  // Claude extraction (ANTHROPIC_API_KEY) runs before the heuristic parser in memory and after a failed Cortex extraction live.
+  const extractor = extractorFromConfig(config.claude);
+  log.info(config.claudeConfigured ? `Claude extraction fallback: ${config.claude.model}` : 'Claude extraction fallback: off (no ANTHROPIC_API_KEY)');
+  const memory = new MemoryBackend({ clock, snowflakeConfigured: config.snowflakeConfigured, extractor });
   if (config.mode === 'live') {
     // snowflake-sdk is large and its require() is synchronous: load it before listening so no request waits behind it.
     const ms = await preloadSnowflakeSdk();
     log.info(`snowflake-sdk loaded in ${ms} ms`);
   }
-  const live = config.mode === 'live' ? new LiveBackend(config, clock) : undefined;
+  const live = config.mode === 'live' ? new LiveBackend(config, clock, undefined, { extractor }) : undefined;
   const service = new UniMateService(config.mode, memory, live);
   const app = createApp(service);
 

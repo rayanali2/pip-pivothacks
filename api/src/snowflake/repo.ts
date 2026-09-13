@@ -201,23 +201,56 @@ export function rowToPlan(row: Row): Plan {
   });
 }
 
+/** The Task fields of a touched task the pipeline trace shows as a chip. */
+export interface ExtractedTaskSummary {
+  normalized_text: string;
+  money_at_risk: number | null;
+  /** as returned (NTZ 'YYYY-MM-DDTHH:MM:SS' or IsoDateTime) */
+  due_at: string | null;
+}
+
 export interface ExtractSummary {
   taskCount: number;
   constraintCount: number;
   model: string | null;
   error: string | null;
+  /** tasks the procedure inserted or merged (readable ones only) */
+  tasks: ExtractedTaskSummary[];
+  constraints: Array<Pick<Constraint, 'kind' | 'value'>>;
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) return Number(value);
+  return null;
 }
 
 /** EXTRACT_FROM_TRANSCRIPT output summary. */
 export function readExtractResult(raw: unknown): ExtractSummary {
   const o = asRecord(parseVariant(raw));
-  if (!o) return { taskCount: 0, constraintCount: 0, model: null, error: 'EXTRACT_FROM_TRANSCRIPT returned no object' };
+  if (!o) return { taskCount: 0, constraintCount: 0, model: null, error: 'EXTRACT_FROM_TRANSCRIPT returned no object', tasks: [], constraints: [] };
   const error = o.error === undefined || o.error === null || o.error === '' ? null : String(o.error);
+  const tasks: ExtractedTaskSummary[] = [];
+  for (const item of Array.isArray(o.tasks) ? o.tasks : []) {
+    const t = asRecord(parseVariant(item));
+    if (!t) continue;
+    const title = typeof t.normalized_text === 'string' && t.normalized_text.trim() !== '' ? t.normalized_text : typeof t.raw_text === 'string' ? t.raw_text : '';
+    tasks.push({ normalized_text: title, money_at_risk: numberOrNull(t.money_at_risk), due_at: typeof t.due_at === 'string' ? t.due_at : null });
+  }
+  const constraints: Array<Pick<Constraint, 'kind' | 'value'>> = [];
+  for (const item of Array.isArray(o.constraints) ? o.constraints : []) {
+    const c = asRecord(parseVariant(item));
+    const kind = c && typeof c.kind === 'string' ? c.kind : null;
+    if (!c || kind === null || !CONSTRAINT_KINDS.some((k) => k === kind)) continue;
+    constraints.push({ kind: oneOf(CONSTRAINT_KINDS, kind, 'time_window'), value: toJsonValue(parseVariant(c.value)) });
+  }
   return {
     taskCount: Array.isArray(o.tasks) ? o.tasks.length : 0,
     constraintCount: Array.isArray(o.constraints) ? o.constraints.length : 0,
     model: typeof o.model === 'string' ? o.model : null,
     error,
+    tasks,
+    constraints,
   };
 }
 

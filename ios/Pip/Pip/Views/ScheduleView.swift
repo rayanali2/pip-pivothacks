@@ -30,6 +30,15 @@ struct ScheduleView: View {
                 ServerSection()
             }
             .navigationTitle("Schedule")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showingAddBlock = true
+                    } label: {
+                        Label("Add block", systemImage: "plus")
+                    }
+                }
+            }
             .scrollContentBackground(.hidden)
             .uniMateScreen()
             .scrollDismissesKeyboard(.interactively)
@@ -79,11 +88,14 @@ struct ScheduleView: View {
     private var todaySection: some View {
         Section {
             if let window = model.currentPlan?.freeWindowText ?? model.todayTimetable?.nextFreeWindow?.label {
-                Label(window, systemImage: "clock")
-                    .font(.subheadline.weight(.medium)).foregroundStyle(UniMateDesign.accent)
+                Label(window, systemImage: "hourglass")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(UniMateDesign.accent)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if dayEntries.isEmpty {
-                UniMateStatusView(symbol: "calendar", title: "Room to shape your day", detail: "No scheduled blocks yet. Talk to UniMate or add a class below.")
+                UniMateStatusView(symbol: "calendar", title: "Nothing scheduled today", detail: "Tap + to add a class.")
+                    .padding(.vertical, 4)
             } else {
                 ForEach(dayEntries) { entry in
                     if let block = entry.block {
@@ -104,9 +116,9 @@ struct ScheduleView: View {
                 }
             }
         } header: {
-            Text(timelineFilter == .all ? "Day flow" : timelineFilter == .fixed ? "Fixed classes · tap filter to clear" : "Flexible tasks · tap filter to clear")
+            Text(timelineFilter == .all ? "Today" : timelineFilter == .fixed ? "Fixed only · tap chip to clear" : "Flexible only · tap chip to clear")
         } footer: {
-            Label("Fixed classes · flexible task windows", systemImage: "info.circle")
+            Text("Classes are fixed. Task times are suggestions.")
         }
     }
 
@@ -114,18 +126,26 @@ struct ScheduleView: View {
     private var unscheduledSection: some View {
         let unscheduled = flexibleItems.filter { $0.startsAt == nil }
         if !unscheduled.isEmpty && timelineFilter != .fixed {
-            Section("Find a window") {
+            Section("No time yet") {
                 ForEach(unscheduled) { item in
                     NavigationLink {
                         TaskDetailView(item: item, task: model.task(for: item), planNow: model.currentPlan?.reasoning.now)
                     } label: {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(item.title).font(.subheadline.weight(.semibold))
-                            Text(item.timeLabel(relativeTo: model.currentPlan?.reasoning.now) ?? "Unscheduled")
-                                .font(.caption).foregroundStyle(UniMateDesign.secondary)
-                            if let flag = item.flag { FlagPill(flag: flag) }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.title)
+                                .font(.body.weight(.semibold))
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text(item.action)
+                                .font(.footnote)
+                                .foregroundStyle(UniMateDesign.secondary)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if let flag = item.flag {
+                                FlagPill(flag: flag)
+                                    .padding(.top, 2)
+                            }
                         }
-                        .padding(.vertical, 6)
+                        .padding(.vertical, 4)
                     }
                 }
             }
@@ -134,36 +154,40 @@ struct ScheduleView: View {
 
     // MARK: Week
 
+    @ViewBuilder
     private var weekSection: some View {
         Section {
-            ForEach(Array(1...7), id: \.self) { day in
-                dayRows(day)
-            }
             Button {
                 showingAddBlock = true
             } label: {
-                Label("Add block", systemImage: "plus")
+                Label("Add block", systemImage: "plus.circle.fill")
+                    .fontWeight(.semibold)
             }
         } header: {
-            Text("Weekly timetable")
+            Text("Week")
         } footer: {
-            Text("Swipe left on a block to delete it.")
+            if !model.weekTimetable.isEmpty {
+                Text("Swipe left to delete.")
+            }
+        }
+        ForEach(Array(1...7), id: \.self) { day in
+            daySection(day)
         }
     }
 
     @ViewBuilder
-    private func dayRows(_ day: Int) -> some View {
+    private func daySection(_ day: Int) -> some View {
         let dayBlocks = blocks(on: day)
         if !dayBlocks.isEmpty {
-            Text(DateFormatting.weekdayName(day))
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(UniMateDesign.secondary)
-                .textCase(.uppercase)
-            ForEach(dayBlocks) { block in
-                WeekBlockRow(block: block)
-            }
-            .onDelete { offsets in
-                deleteBlocks(on: day, at: offsets)
+            Section {
+                ForEach(dayBlocks) { block in
+                    WeekBlockRow(block: block)
+                }
+                .onDelete { offsets in
+                    deleteBlocks(on: day, at: offsets)
+                }
+            } header: {
+                Text(DateFormatting.weekdayName(day))
             }
         }
     }
@@ -203,29 +227,44 @@ private struct TimelineBlockRow: View {
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
         layout {
             VStack(alignment: .leading, spacing: 2) {
                 Text(DateFormatting.timeOfDay(block.startsAt))
-                    .font(.subheadline.monospacedDigit())
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 Text(DateFormatting.timeOfDay(block.endsAt))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(UniMateDesign.secondary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
-            .frame(width: typeSize.isAccessibilitySize ? nil : 76, alignment: .leading)
+            .frame(minWidth: typeSize.isAccessibilitySize ? nil : 76, alignment: .leading)
 
-            Capsule()
-                .fill(Color.accentColor)
-                .frame(width: 3, height: 36)
-
-            VStack(alignment: .leading, spacing: 5) {
-                Label("FIXED", systemImage: "lock.fill")
-                    .font(.caption2.weight(.bold)).foregroundStyle(UniMateDesign.accent)
+            VStack(alignment: .leading, spacing: 6) {
                 Text(block.title)
-                    .font(.body.weight(.medium))
+                    .font(.body.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                UniMateFlowLayout {
+                    UniMatePill(text: "Class", systemImage: "lock.fill")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, stacked ? 0 : 16)
+            .overlay(alignment: .leading) {
+                if !stacked {
+                    // Full-height rail marks a fixed class.
+                    Capsule()
+                        .fill(UniMateDesign.accent)
+                        .frame(width: 3)
+                        .frame(width: 7)
+                }
             }
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -234,27 +273,59 @@ private struct TimelineTaskRow: View {
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
         layout {
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(DateFormatting.time(item.startsAt) ?? "Anytime")
-                    .font(.subheadline.monospacedDigit())
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 if let end = DateFormatting.time(item.endsAt) {
-                    Text(end).font(.caption.monospacedDigit()).foregroundStyle(UniMateDesign.secondary)
+                    Text(end)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(UniMateDesign.secondary)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
             }
-            .frame(width: typeSize.isAccessibilitySize ? nil : 76, alignment: .leading)
-            TaskGlyph(category: item.category, size: 34)
-            VStack(alignment: .leading, spacing: 5) {
-                Text(item.category?.label.uppercased() ?? "FLEXIBLE").font(.caption2.weight(.bold)).foregroundStyle(UniMateDesign.accent)
-                Text(item.title).font(.body.weight(.medium))
-                if let minutes = PlanVisuals.windowMinutes(item) {
-                    Label("\(minutes) min", systemImage: "timer")
-                        .font(.caption).foregroundStyle(UniMateDesign.secondary)
+            .frame(minWidth: typeSize.isAccessibilitySize ? nil : 76, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(item.title)
+                    .font(.body.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                UniMateFlowLayout {
+                    UniMatePill(text: "Flexible", systemImage: "circle.dashed", tint: UniMateDesign.secondary)
+                    if let category = item.category, category != .unknown {
+                        UniMatePill(text: category.label, systemImage: PlanVisuals.symbol(for: category), tint: UniMateDesign.secondary)
+                    }
+                    if let minutes = PlanVisuals.windowMinutes(item) {
+                        UniMatePill(text: "\(minutes) min", systemImage: "timer", tint: UniMateDesign.secondary)
+                    }
+                    if let flag = item.flag {
+                        FlagPill(flag: flag)
+                    }
+                }
+                Text(item.action)
+                    .font(.footnote)
+                    .foregroundStyle(UniMateDesign.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, stacked ? 0 : 16)
+            .overlay(alignment: .topLeading) {
+                if !stacked {
+                    // Hollow ring marks a flexible, suggested time.
+                    Circle()
+                        .strokeBorder(UniMateDesign.accent, lineWidth: 1.5)
+                        .frame(width: 7, height: 7)
+                        .padding(.top, 8)
                 }
             }
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
     }
 }
 
@@ -264,11 +335,14 @@ private struct WeekBlockRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(block.title)
-                .font(.body)
+                .font(.body.weight(.medium))
+                .fixedSize(horizontal: false, vertical: true)
             Text(detail)
-                .font(.subheadline)
+                .font(.subheadline.monospacedDigit())
                 .foregroundStyle(UniMateDesign.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .padding(.vertical, 2)
     }
 
     private var detail: String {
@@ -329,9 +403,10 @@ private struct AddBlockSheet: View {
                 DatePicker("Ends", selection: $end, displayedComponents: .hourAndMinute)
                 TextField("Location (optional)", text: $location)
                 if !timesValid {
-                    Text("The end time must be after the start time.")
-                        .font(.footnote)
-                        .foregroundStyle(Color.red)
+                    Label("End must be after start.", systemImage: "exclamationmark.circle.fill")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(UniMateDesign.danger)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .navigationTitle("Add block")
@@ -380,18 +455,25 @@ private struct ProfileSection: View {
     @State private var procrastinatesOn: TaskCategory? = nil
     @State private var isSaving = false
     @State private var savedMessage: String?
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
+        let stacked = typeSize.isAccessibilitySize
+        let cashLayout = stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6)) : AnyLayout(HStackLayout())
         Section {
-            HStack {
+            cashLayout {
                 Text("Cash available")
-                Spacer()
-                Text("$")
-                    .foregroundStyle(UniMateDesign.secondary)
-                TextField("0", text: $cashText)
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: 110)
+                if !stacked {
+                    Spacer()
+                }
+                HStack {
+                    Text("$")
+                        .foregroundStyle(UniMateDesign.secondary)
+                    TextField("0", text: $cashText)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(stacked ? .leading : .trailing)
+                }
+                .frame(maxWidth: stacked ? CGFloat.infinity : 110, alignment: stacked ? .leading : .trailing)
             }
             .onAppear {
                 loadDraft()
@@ -404,14 +486,14 @@ private struct ProfileSection: View {
 
             Toggle("Cooks own meals", isOn: $cooksOwnMeals)
 
-            Picker("Chronotype", selection: $chronotype) {
+            Picker("Peak energy", selection: $chronotype) {
                 ForEach(Chronotype.known, id: \.self) { value in
                     Text(value.label).tag(value)
                 }
             }
 
             Picker("Procrastinates on", selection: $procrastinatesOn) {
-                Text("Nothing in particular").tag(TaskCategory?.none)
+                Text("Nothing").tag(TaskCategory?.none)
                 ForEach(TaskCategory.known, id: \.self) { value in
                     Text(value.label).tag(TaskCategory?.some(value))
                 }
@@ -422,13 +504,15 @@ private struct ProfileSection: View {
             } label: {
                 HStack {
                     Text("Save")
+                        .fontWeight(.semibold)
                     Spacer()
                     if isSaving {
                         ProgressView()
                     } else if let savedMessage {
-                        Text(savedMessage)
-                            .font(.footnote)
-                            .foregroundStyle(UniMateDesign.secondary)
+                        Label(savedMessage, systemImage: "checkmark")
+                            .labelStyle(UniMateCompactLabelStyle())
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(UniMateDesign.positive)
                     }
                 }
             }
@@ -514,21 +598,24 @@ private struct ServerSection: View {
                 Text(status)
                     .font(.footnote)
                     .foregroundStyle(UniMateDesign.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let health = model.health {
                 HealthSummary(health: health, isOffline: model.isOffline)
             }
 
-            Button("Reset demo data", role: .destructive) {
-                Task {
-                    await model.resetDemo()
+            if Config.isDemoMode {
+                Button("Reset demo data", role: .destructive) {
+                    Task {
+                        await model.resetDemo()
+                    }
                 }
             }
         } header: {
             Text("Server")
         } footer: {
-            Text("On a phone, use your laptop's LAN IP, e.g. http://192.168.1.20:3000. If the server can't be reached, UniMate uses local fallback data.")
+            Text("Use your laptop’s LAN IP. A server connection is required to save your input and update plans.")
         }
     }
 }
@@ -538,7 +625,7 @@ private struct HealthSummary: View {
     let isOffline: Bool
 
     private var modeText: String {
-        isOffline ? "Local fallback (offline)" : health.mode.capitalized
+        isOffline ? (Config.isDemoMode ? "Developer demo (offline)" : "Unavailable") : health.mode.capitalized
     }
 
     private var snowflakeText: String {
@@ -564,7 +651,8 @@ private struct HealthSummary: View {
             if let error = health.snowflake.error, !error.isEmpty, !isOffline {
                 Text(error)
                     .font(.footnote)
-                    .foregroundStyle(Color.red)
+                    .foregroundStyle(UniMateDesign.danger)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .font(.subheadline)

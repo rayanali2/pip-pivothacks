@@ -265,6 +265,58 @@ struct SnowflakeStatus: Codable, Hashable {
     let lastWarmPingAt: String?
 }
 
+struct ClaudeStatus: Codable, Hashable {
+    let configured: Bool
+    let model: String?
+}
+
+// MARK: - UniMateeline
+
+/// Something the extract stage pulled out of the words.
+struct UniMateelineChip: Codable, Hashable {
+    /// "task" | "fixed_block" | "cash" | "time_window" | "travel" | "question"
+    let kind: String
+    let label: String
+}
+
+/// One step from words to plan, named by the engine that actually ran it.
+struct UniMateelineStage: Codable, Hashable, Identifiable {
+    /// "transcribe" | "extract" | "rank" | "wording"
+    let id: String
+    let label: String
+    let engine: String
+    let detail: String
+    /// "ok" | "fallback" | "skipped"
+    let status: String
+    let ms: Int?
+    /// empty except on the extract stage
+    let chips: [UniMateelineChip]
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case label
+        case engine
+        case detail
+        case status
+        case ms
+        case chips
+    }
+}
+
+extension UniMateelineStage {
+    // Lenient: the pipeline is explanation only, so a surprising stage never breaks a plan.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? container.decode(String.self, forKey: .id)) ?? "stage"
+        label = (try? container.decode(String.self, forKey: .label)) ?? ""
+        engine = (try? container.decode(String.self, forKey: .engine)) ?? ""
+        detail = (try? container.decode(String.self, forKey: .detail)) ?? ""
+        status = (try? container.decode(String.self, forKey: .status)) ?? "ok"
+        ms = (try? container.decodeIfPresent(Double.self, forKey: .ms)).map { Int($0.rounded()) }
+        chips = (try? container.decodeIfPresent([UniMateelineChip].self, forKey: .chips)) ?? []
+    }
+}
+
 // MARK: - HTTP responses
 
 struct ErrorResponse: Codable {
@@ -280,6 +332,8 @@ struct HealthResponse: Codable, Hashable {
     let now: String
     let snowflake: SnowflakeStatus
     let cortex: CortexStatus
+    /// absent on servers without Claude support
+    var claude: ClaudeStatus?
 }
 
 struct CaptureResponse: Codable, Hashable {
@@ -291,6 +345,8 @@ struct CaptureResponse: Codable, Hashable {
     let plan: Plan
     let diff: PlanDiff?
     let previousPlanId: String?
+    /// absent in older servers and fixtures
+    var pipeline: [UniMateelineStage]?
 }
 
 struct RerankResponse: Codable, Hashable {
@@ -298,6 +354,8 @@ struct RerankResponse: Codable, Hashable {
     let plan: Plan
     let previousPlanId: String
     let diff: PlanDiff
+    /// absent in older servers and fixtures
+    var pipeline: [UniMateelineStage]?
 }
 
 struct TodayTimetableResponse: Codable, Hashable {
@@ -352,16 +410,25 @@ struct CaptureTextRequest: Encodable {
     let followupPlanId: String?
 }
 
+/// nil fields are omitted from the JSON body; the API carries the previous plan's values forward.
 struct RerankContextInput: Encodable, Hashable {
     var availableMinutes: Int?
     var cashAvailable: Double?
     var question: String?
+
+    init(availableMinutes: Int? = nil, cashAvailable: Double? = nil, question: String? = nil) {
+        self.availableMinutes = availableMinutes
+        self.cashAvailable = cashAvailable
+        self.question = question
+    }
 }
 
 struct RerankRequest: Encodable {
     let studentId: String
     let planId: String
     let context: RerankContextInput
+    /// true = compute the plan and diff without saving anything; omitted from JSON when nil
+    let preview: Bool?
 }
 
 /// A timetable block without student_id (PutTimetableRequest.blocks element).

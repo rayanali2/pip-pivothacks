@@ -68,9 +68,9 @@ private enum ReminderFailure: LocalizedError {
     case denied, pastDate, tooMany
     var errorDescription: String? {
         switch self {
-        case .denied: return "Notifications are disabled. Enable them for UniMate in Settings, or turn off Notify me to save without an alert."
-        case .tooMany: return "Your notification list is full. Complete or delete an existing reminder first."
-        case .pastDate: return "Choose a future time for the notification."
+        case .denied: return "Notifications are off. Enable them in Settings, or turn off Notify me."
+        case .tooMany: return "Too many alerts scheduled. Complete or delete a reminder first."
+        case .pastDate: return "Pick a future time for the alert."
         }
     }
 }
@@ -83,19 +83,39 @@ struct PlanSaveActions: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Save your plan").font(.headline)
-            Text(plan.reasoning.answer == nil
-                 ? "Add a planned activity to Calendar or make a reminder list."
-                 : "Want to add the event you discussed to Calendar, or set a reminder?")
-                .font(.subheadline).foregroundStyle(.secondary)
-            HStack {
-                Button("Add to Calendar", systemImage: "calendar.badge.plus") { showCalendar = true }
-                Button("Reminders", systemImage: "bell.badge") { showReminders = true }
+            SectionHeading(title: "Save your plan",
+                           subtitle: plan.reasoning.answer == nil ? nil : "Add the event you discussed.")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) { saveButtons(singleLine: true) }
+                VStack(spacing: 10) { saveButtons(singleLine: false) }
             }
             .buttonStyle(.bordered)
+            .controlSize(.large)
+            .tint(UniMateDesign.accent)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 4)
         .sheet(isPresented: $showCalendar) { CalendarDraftView(plan: plan) }
         .sheet(isPresented: $showReminders) { UniMateRemindersView(plan: plan) }
+    }
+
+    /// `singleLine` keeps labels on one line in the side-by-side layout so ViewThatFits falls back to stacking.
+    @ViewBuilder
+    private func saveButtons(singleLine: Bool) -> some View {
+        Button { showCalendar = true } label: {
+            Label("Add to Calendar", systemImage: "calendar.badge.plus")
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(singleLine ? 1 : nil)
+                .fixedSize(horizontal: singleLine, vertical: false)
+                .frame(maxWidth: .infinity)
+        }
+        Button { showReminders = true } label: {
+            Label("Reminders", systemImage: "bell.badge")
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(singleLine ? 1 : nil)
+                .fixedSize(horizontal: singleLine, vertical: false)
+                .frame(maxWidth: .infinity)
+        }
     }
 }
 
@@ -131,10 +151,14 @@ private struct CalendarDraftView: View {
         NavigationStack {
             Form {
                 if let answer = plan.reasoning.answer {
-                    Section("UniMate's advice") { Text(answer) }
+                    Section("UniMate’s advice") {
+                        Text(answer)
+                            .font(.subheadline)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                Section("Review the event") {
-                    Menu("Use a planned activity") {
+                Section {
+                    Menu {
                         ForEach(plannedItems(plan)) { item in
                             Button(item.title) {
                                 title = item.title
@@ -143,38 +167,52 @@ private struct CalendarDraftView: View {
                                 location = item.location ?? ""
                             }
                         }
+                    } label: {
+                        Label("Use a planned activity", systemImage: "list.bullet")
                     }
                     TextField("Event name", text: $title)
                     DatePicker("Starts", selection: $start)
                     DatePicker("Ends", selection: $end, in: start...)
                     TextField("Location", text: $location)
-                    Text("For a new event you discussed, enter its name and times. Check travel time and UniMate's advice before saving.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                } header: {
+                    Text("Event")
+                } footer: {
+                    Text("Check times and travel before saving.")
                 }
                 Section {
-                    Button("Review in Apple Calendar") { showEditor = true }
-                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || end <= start)
-                    Button("Review in Google Calendar") {
+                    Button { showEditor = true } label: {
+                        Label("Review in Apple Calendar", systemImage: "calendar")
+                    }
+                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || end <= start)
+                    Button {
                         guard let url = GoogleCalendarLink.make(title: title, start: start, end: end, location: location) else { return }
                         openURL(url) { accepted in
                             googleOpened = accepted
                             googleFailed = !accepted
                         }
+                    } label: {
+                        Label("Review in Google Calendar", systemImage: "arrow.up.right.square")
                     }
                     .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || end <= start)
                     if googleOpened {
-                        Text("Finish by tapping Save in Google Calendar. UniMate cannot confirm whether you saved the event.")
-                            .font(.footnote).foregroundStyle(.secondary)
+                        Text("Tap Save in Google Calendar to finish. UniMate can’t confirm it saved.")
+                            .font(.footnote).foregroundStyle(UniMateDesign.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     if googleFailed {
-                        Text("Could not open Google Calendar. Check your browser settings and try again.")
-                            .font(.footnote).foregroundStyle(.red)
+                        Text("Couldn’t open Google Calendar. Check browser settings.")
+                            .font(.footnote).foregroundStyle(UniMateDesign.danger)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    Text("Google Calendar receives the event name, times and location when you open it. Choose your Google account, calendar and notification settings there, then Save. UniMate does not read either calendar or update its plan from saved events.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                } footer: {
+                    Text("Google gets the name, times and location. UniMate never reads calendars or changes your plan from them.")
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(UniMateDesign.background)
+            .tint(UniMateDesign.accent)
             .navigationTitle("Add event")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
             .sheet(isPresented: $showEditor) {
                 CalendarEventEditor(title: title, start: start, end: end, location: location) { didSave in
@@ -230,15 +268,17 @@ struct UniMateRemindersView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("New reminder") {
+                Section {
                     if plan != nil {
-                        Menu("Use a task from your plan") {
+                        Menu {
                             ForEach(plannedItems(plan)) { item in
                                 Button(item.title) {
                                     title = item.title
                                     date = plannedDate(item.startsAt ?? item.dueAt) ?? Date().addingTimeInterval(3600)
                                 }
                             }
+                        } label: {
+                            Label("Use a task from your plan", systemImage: "list.bullet")
                         }
                     }
                     TextField("What do you want to remember?", text: $title)
@@ -255,29 +295,43 @@ struct UniMateRemindersView: View {
                         }
                     }
                     .disabled(saving || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (notify && date <= Date()))
-                    Text("Reminders are saved on this phone. Alerts require notification permission and may be silenced by Focus. Review dates from a demo plan before saving.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                } header: {
+                    Text("New reminder")
+                } footer: {
+                    Text("Saved on this phone. Check dates copied from your plan.")
                 }
                 .disabled(saving)
-                Section("Your reminders") {
-                    if store.items.isEmpty { Text("No reminders yet").foregroundStyle(.secondary) }
+                Section {
+                    if store.items.isEmpty { Text("No reminders yet").foregroundStyle(UniMateDesign.secondary) }
                     ForEach(store.items.sorted { $0.date < $1.date }) { item in
                         VStack(alignment: .leading, spacing: 4) {
                             Label(item.title, systemImage: item.completed ? "checkmark.circle.fill" : (item.notify ? "bell" : "circle"))
                                 .strikethrough(item.completed)
+                                .fixedSize(horizontal: false, vertical: true)
                             Text(item.date.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption).foregroundStyle(.secondary)
+                                .font(.caption).foregroundStyle(UniMateDesign.secondary)
                         }
+                        .foregroundStyle(item.completed ? UniMateDesign.secondary : UniMateDesign.ink)
                         .swipeActions {
                             Button("Delete", role: .destructive) { store.remove(item) }
-                            if !item.completed { Button("Done") { store.complete(item) }.tint(.green) }
+                            if !item.completed { Button("Done") { store.complete(item) }.tint(UniMateDesign.positive) }
                         }
+                    }
+                } header: {
+                    Text("Your reminders")
+                } footer: {
+                    if !store.items.isEmpty {
+                        Text("Swipe to complete or delete")
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(UniMateDesign.background)
+            .tint(UniMateDesign.accent)
             .navigationTitle("Reminders")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-            .alert("Couldn't save reminder", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+            .alert("Couldn’t save reminder", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
                 Button("OK") { error = nil }
             } message: { Text(error ?? "") }
         }

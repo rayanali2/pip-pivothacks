@@ -11,14 +11,14 @@
 - Money is in dollars as a JSON number. Durations are whole minutes.
 - Every HTTP response body includes `source: 'snowflake' | 'fallback'`. MOCK_MODE always returns `'fallback'`. The iOS label reads "Snowflake" or "Local fallback".
 - Status codes: 200 on success, 400 `{source, error}` on invalid input. Never 500: every route catches its own errors and falls back to the in-memory backend.
-- The demo student id is `demo`. Every endpoint accepts `student_id`, and the iOS app always sends `demo`.
+- Student-specific endpoints require `student_id`, including GET queries. Normal iOS use sends a stable installation-specific ID. The shared `demo` ID and bundled fixtures require the `--pip-demo` launch argument in a Debug build; Release builds never select them.
 
 ## 2. Scenario clock
 
 Plans are computed against a scenario clock, `clock.now()`:
 - If `DEMO_NOW=HH:MM`, the clock is today's date at that time, frozen.
-- If `MOCK_MODE=true` and `DEMO_NOW` is unset, the clock defaults to **13:13** today, frozen. This reproduces "47 min free until CHEM 110 Lab, 2:00 PM".
-- If `DEMO_NOW=real`, or live mode runs without `DEMO_NOW`, the clock is the real local time.
+- Mock and live modes both default to the real local time. Set `DEMO_NOW=13:13` explicitly to reproduce the scripted demo.
+- If `DEMO_NOW=real`, or `DEMO_NOW` is unset, the clock is the real local time.
 
 `reasoning.now` is the scenario clock. Record timestamps (`created_at` on captures, plans and actions) always use the real wall clock, so History shows when decisions were actually made.
 
@@ -26,10 +26,10 @@ Plans are computed against a scenario clock, `clock.now()`:
 
 | Method & path | Body / query | Response type |
 |---|---|---|
-| GET `/health` | `?refresh=1` re-verifies Cortex | `HealthResponse` |
-| POST `/captures/voice` | multipart: `audio` file (m4a), `student_id`, optional `followup_plan_id` | `CaptureResponse` |
+| GET `/health` | `?refresh=1` re-verifies Cortex | `HealthResponse` (optional `claude {configured, model}`) |
+| POST `/captures/voice` | multipart: `audio` file (m4a), `student_id`, optional `followup_plan_id`, optional `client_transcript` | `CaptureResponse` |
 | POST `/captures/text` | `CaptureTextRequest` (+ optional `followup_plan_id`) | `CaptureResponse` |
-| POST `/plans/rerank` | `RerankRequest` | `RerankResponse` |
+| POST `/plans/rerank` | `RerankRequest` (+ optional `preview: boolean`) | `RerankResponse` |
 | GET `/timetable/today?student_id=` | | `TodayTimetableResponse` |
 | GET `/timetable?student_id=` | full week (added for the Schedule screen) | `TimetableResponse` |
 | PUT `/timetable` | `PutTimetableRequest`: replaces the student's whole week | `TimetableResponse` |
@@ -43,11 +43,21 @@ Plans are computed against a scenario clock, `clock.now()`:
 
 Capture pipeline:
 - **Live:** stage upload → `AI_TRANSCRIBE` → insert CAPTURES → `CALL EXTRACT_FROM_TRANSCRIPT` → `CALL BUILD_PLAN`.
-- **Fallback / mock:** heuristic extract → in-memory store → TypeScript ranker.
+  - No audio, or `AI_TRANSCRIBE` fails or returns empty text: the `client_transcript` field is used when present (transcribe stage `On-device speech (iOS)`, status `fallback`); otherwise the response has `needs_text: true`, with transcribe stage `Snowflake AI_TRANSCRIBE` / `fallback` when AI_TRANSCRIBE ran, or `Not needed` / `skipped` when no audio was uploaded.
+  - `EXTRACT_FROM_TRANSCRIPT` errors or finds no tasks: Claude extraction (when `ANTHROPIC_API_KEY` is set), then the heuristic parser, writes to TASKS and CONSTRAINTS.
+  - `BUILD_PLAN` fails: the TypeScript ranker over Snowflake data, stored in PLANS (source `fallback`).
+- **Fallback / mock:** Claude extraction (when `ANTHROPIC_API_KEY` is set) → heuristic parser on any Claude error, timeout or invalid output (and always without a key) → in-memory store → TypeScript ranker.
 
-When a capture includes `followup_plan_id`, it is treated as a rerank: the transcript becomes `context.question`, the minutes and cash are parsed from the text, and no new tasks are extracted. The response then carries `diff` and `previous_plan_id`.
+Claude extraction (`api/src/llm/claudeExtract.ts`, model `PIP_CLAUDE_MODEL`, default `claude-haiku-4-5`, one request within `PIP_CLAUDE_TIMEOUT_MS`, default 8000, no retries):
+- Returns the same `TaskDraft[]` / `ConstraintDraft[]` / `question` as the heuristic parser, through a JSON-schema output format validated with zod.
+- `merge_into` is kept only when it names a listed open task; otherwise the task is new. A merged task keeps its stored `est_minutes` unless the clause states a duration. A new task without a stated duration gets the category default.
+- Constraint values are exactly the `snowflake/NOTES.md` "Validated constraint values" shapes; any invalid value rejects the whole output.
+- Relative dates are resolved against the scenario clock sent in the prompt: a time with no day is today, "tomorrow" is tomorrow, a weekday is the next such day strictly after today, a day with no time is 23:59.
+- Without `ANTHROPIC_API_KEY`, the demo output is exactly section 5. With it, the demo sentence still merges into the demo tasks and the demo plan is unchanged.
 
-Mock voice capture ignores the audio. It returns the demo transcript, or "I only have 25 minutes." when `followup_plan_id` is present.
+When a capture includes `followup_plan_id`, it is treated as a rerank: the transcript becomes `context.question`, the minutes and cash are parsed from the text, and no new tasks are extracted (Claude is not called). The response then carries `diff` and `previous_plan_id`.
+
+Mock voice capture ignores the audio. It uses `client_transcript` when present and non-blank. Otherwise it returns the demo transcript, or "I only have 25 minutes." when `followup_plan_id` is present.
 
 Actions change task status as follows:
 - `done` → status `done`
@@ -55,12 +65,42 @@ Actions change task status as follows:
 - `drop` → status `dropped`
 - `start_now` → no change
 
-The ranker treats `open` and `deferred` tasks as open.
+The ranker treats `open` and `deferred` tasks as open. A rerank reads task status fresh (memory store, or TASKS in Snowflake), so a task marked `done`, `dropped` or `expired` through `POST /actions` since the previous plan is not in the new plan.
 
 Rerank context:
 - Carries forward the previous plan's `context` and merges the new values on top.
+- An explicit `available_minutes` or `cash_available` replaces the carried value. To clear an earlier "25 minutes", send `available_minutes` equal to the full free window (`reasoning.free_window.minutes`).
 - If `available_minutes` is absent, it is parsed from `question`: `(\d+)\s*(min|mins|minutes)`, "half an hour" = 30, "an hour"/"1 hour" = 60, `(\d+)\s*hours?` = N×60.
 - If `cash_available` is absent, it is parsed from `\$(\d+(\.\d+)?)`.
+- If the request sets `available_minutes` or `cash_available` but has no `question`, the carried question is dropped, because its numbers no longer apply.
+- `context.available_minutes` takes precedence over a `time_window` constraint carried from the capture (TypeScript ranker and `BUILD_PLAN` agree).
+
+Preview reranks (`preview: true`):
+- The plan and diff are computed exactly as for a normal rerank from the same `plan_id`, and `plan.plan_id` is `preview-<uuid>`.
+- Nothing is persisted: no PLANS row or in-memory plan, no History entry, no task status or constraint changes. A later rerank that sends a `preview-` id falls back to the student's latest stored plan.
+- Live mode computes previews with the TypeScript ranker over data read from Snowflake, because `BUILD_PLAN` always inserts into PLANS. Previews are therefore source `fallback` in both modes.
+
+### Pipeline trace
+
+`CaptureResponse.pipeline` and `RerankResponse.pipeline` always hold four `PipelineStage`s, in this order:
+
+| id | label | engine (what actually ran) |
+|---|---|---|
+| `transcribe` | Heard you | `Snowflake AI_TRANSCRIBE` \| `On-device speech (iOS)` \| `Typed` \| `Demo transcript (mock mode)` |
+| `extract` | Pulled out tasks | `Snowflake Cortex · <model>` \| `Claude · <model>` \| `Heuristic parser` |
+| `rank` | Ranked against 5 rules | `Snowflake SQL pre-rank` \| `Deterministic 5-rule ranker` |
+| `wording` | Wrote your plan | `Snowflake Cortex · <model>` \| `Snowflake SQL pre-rank (no LLM)` \| `Templates` |
+
+- A skipped stage has engine `Not needed`.
+- `status`: `ok` when the intended engine ran; `fallback` when a step down in the chain served it; `skipped` when there was nothing to do.
+- `ms` is measured on the server. It is `null` when nothing ran there: typed or on-device text, skipped stages, and the `BUILD_PLAN` wording, whose time is counted on the rank stage because one call ranks and words.
+- `detail` is one short line with numbers, e.g. `36 words`, `3 tasks · 2 constraints`, `6 tasks scored · do now: Return headphones`, `7 items + summary`. When a step down happened, a short reason comes first: `Cortex extraction failed · 3 tasks · 2 constraints`, `Claude timed out · ...`, `BUILD_PLAN failed · ...`, `Preview, not saved · ...`.
+- `chips` are empty except on the extract stage:
+  - one `task` chip per extracted task, using the stored title after merging, plus ` · $79` when money is at risk and a due hint (` · 5:00 PM` today, ` · tomorrow`, ` · Friday`);
+  - one chip per constraint: `Lab 2:00 PM`, `$35 until Fri`, `25 min free`, `15 min travel to campus`;
+  - one `question` chip.
+- Rerank: `transcribe` is `skipped` unless it was a voice or typed follow-up capture. `extract` is the heuristic parse of `question` (detail `Parsed 25 min from your question`, chips for minutes, cash and the question), or `skipped` with no question. `rank` and `wording` are the same as for a capture.
+- When PipService answers from the in-memory backend after the live backend failed, every stage that is not `skipped` becomes `fallback`, and the first stage's detail starts with `Snowflake unavailable` or `Snowflake timed out`.
 
 Follow-up question answers (`reasoning.answer`), deterministic templates:
 - "afford / money / budget / cash / spend": cash, days until `budget_until`, daily budget, the grocery cap, and money at risk.
@@ -77,7 +117,7 @@ Inputs: `now`, open tasks, today's timetable blocks plus any `fixed_block` const
 - `minutes = floor(end − start)`.
 - Label: `"{minutes} min free until {next.title}, {h:mm AM/PM}"`. If there is no next block: `"{h} h {m} min free today"`.
 
-`effective_minutes = min(free.minutes, context.available_minutes ?? ∞)`. A `time_window` constraint behaves like `available_minutes`.
+`effective_minutes = min(free.minutes, context.available_minutes ?? ∞)`. A `time_window` constraint behaves like `available_minutes` when `context.available_minutes` is null; an explicit or carried `available_minutes` takes precedence.
 
 **First step minutes.**
 - `assignment | work | class`: `min(est_minutes ?? 60, 20)`.
@@ -238,7 +278,7 @@ Sections:
 
 ## 7. iOS offline fixtures
 
-These are generated by running the API in MOCK_MODE and saved under `ios/Pip/Pip/Resources/Offline/`. The app uses them only when the API is unreachable.
+These are generated by running the API in MOCK_MODE (`npm run fixtures`, without `ANTHROPIC_API_KEY`) and saved under `ios/Pip/Pip/Resources/Offline/`. Only Debug builds launched with `--pip-demo` may use them when the API is unreachable. Normal use reports connection failures and retains typed input for retry. `capture_voice.json` and `rerank_25.json` include `pipeline`; iOS decodes it as optional.
 
 - `health.json`
 - `capture_voice.json` (demo capture)

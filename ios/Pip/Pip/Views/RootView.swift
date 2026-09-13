@@ -34,6 +34,10 @@ struct RootView: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
+        .fullScreenCover(item: $model.focusSession) { session in
+            FocusSessionView(session: session)
+                .environment(model)
+        }
     }
 }
 

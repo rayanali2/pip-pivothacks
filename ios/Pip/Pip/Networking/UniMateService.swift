@@ -7,6 +7,8 @@ enum UniMateError: LocalizedError {
     case server(String)
     case missingFixture(String)
     case noPlan
+    case previewNeedsServer
+    case serverUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -16,19 +18,23 @@ enum UniMateError: LocalizedError {
         case .server(let message): return message
         case .missingFixture(let name): return "Offline data \(name).json is missing from the app."
         case .noPlan: return "Tell UniMate about your day first."
+        case .previewNeedsServer: return "Previews need the UniMate server."
+        case .serverUnavailable: return "UniMate couldn't reach the server. Check the server address in Schedule and try again."
         }
     }
 }
 
 /// Everything the app asks of the UniMate API. RemoteService talks HTTP;
-/// OfflineService serves bundled fixtures when the API is unreachable.
+/// OfflineService serves bundled fixtures only in explicit developer demo mode.
 @MainActor
 protocol UniMateService: AnyObject {
     var isOffline: Bool { get }
     func health() async throws -> HealthResponse
-    func captureVoice(fileURL: URL, followupPlanID: String?) async throws -> CaptureResponse
+    /// clientTranscript: the on-device speech result, sent as client_transcript when non-empty.
+    func captureVoice(fileURL: URL, followupPlanID: String?, clientTranscript: String?) async throws -> CaptureResponse
     func captureText(_ text: String, followupPlanID: String?) async throws -> CaptureResponse
-    func rerank(planID: String, context: RerankContextInput) async throws -> RerankResponse
+    /// preview: compute the plan and diff without saving anything (plan_id "preview-…").
+    func rerank(planID: String, context: RerankContextInput, preview: Bool) async throws -> RerankResponse
     func timetableToday() async throws -> TodayTimetableResponse
     func timetable() async throws -> TimetableResponse
     func putTimetable(blocks: [TimetableBlockInput]) async throws -> TimetableResponse
@@ -77,13 +83,17 @@ final class RemoteService: UniMateService {
         return try await send(request, as: HealthResponse.self)
     }
 
-    func captureVoice(fileURL: URL, followupPlanID: String?) async throws -> CaptureResponse {
+    func captureVoice(fileURL: URL, followupPlanID: String?, clientTranscript: String?) async throws -> CaptureResponse {
         let audio = try Data(contentsOf: fileURL)
         let boundary = "UniMateBoundary-\(UUID().uuidString)"
         var body = Data()
         body.appendMultipartField(name: "student_id", value: Config.studentID, boundary: boundary)
         if let followupPlanID {
             body.appendMultipartField(name: "followup_plan_id", value: followupPlanID, boundary: boundary)
+        }
+        if let clientTranscript = clientTranscript?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !clientTranscript.isEmpty {
+            body.appendMultipartField(name: "client_transcript", value: clientTranscript, boundary: boundary)
         }
         body.appendMultipartFile(
             name: "audio",
@@ -106,8 +116,13 @@ final class RemoteService: UniMateService {
         return try await send(request, as: CaptureResponse.self)
     }
 
-    func rerank(planID: String, context: RerankContextInput) async throws -> RerankResponse {
-        let payload = RerankRequest(studentId: Config.studentID, planId: planID, context: context)
+    func rerank(planID: String, context: RerankContextInput, preview: Bool) async throws -> RerankResponse {
+        let payload = RerankRequest(
+            studentId: Config.studentID,
+            planId: planID,
+            context: context,
+            preview: preview ? true : nil
+        )
         let request = try makeJSONRequest("POST", "/plans/rerank", body: payload, timeout: Self.longTimeout)
         return try await send(request, as: RerankResponse.self)
     }

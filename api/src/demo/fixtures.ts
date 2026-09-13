@@ -2,7 +2,7 @@ import type { Plan, PlanDiff, PlanItem, Task } from '../types';
 import { formatWhen, hhmm, isoDow, parseDateOnly, tryParseIsoLocal, weekdayName, calendarDaysBetween } from '../clock';
 import { questionKind, parseContextFromQuestion } from '../ranker/questions';
 import { dollars, plural, times } from '../ranker/text';
-import { demoBaseline, DEMO_TASK_IDS } from './scenario';
+import { demoBaseline, DEMO_TASK_IDS, DEMO_STUDENT_ID } from './scenario';
 
 // The spec's "hardcoded correct Today Plan" for the demo (CONTRACT section 5).
 
@@ -97,6 +97,7 @@ function demoTasksIntact(tasks: readonly Task[], now: Date): boolean {
 
 /** Which demo scenario (if any) this plan exactly reproduces. Ignores titles/copy. */
 export function detectDemoScenario(plan: Plan, tasks: readonly Task[], now: Date): DemoScenario | null {
+  if (plan.student_id !== DEMO_STUDENT_ID) return null;
   const dow = isoDow(now);
   const structure = planStructure(plan);
   let scenario: DemoScenario | null = null;

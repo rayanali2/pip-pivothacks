@@ -1,9 +1,7 @@
 import Foundation
 
-/// Chooses between the live API and the bundled offline fixtures.
-/// At launch it pings GET /health with a 4 s timeout: success -> remote, failure -> offline.
-/// If a remote call fails with a transport error mid-session, that call is retried once
-/// offline and the router stays offline. The only visible difference is the source label.
+/// Normal use always talks to the API, including retries after a connection failure.
+/// Bundled fixtures are available only with the explicit debug demo launch argument.
 @MainActor
 final class ServiceRouter {
     static let healthTimeout: TimeInterval = 4
@@ -42,10 +40,22 @@ final class ServiceRouter {
         } else {
             isOffline = true
         }
-        return try? await offline.health()
+        if Config.isDemoMode { return try? await offline.health() }
+        return nil
     }
 
     func run<T>(_ operation: (any UniMateService) async throws -> T) async throws -> T {
+        if !Config.isDemoMode {
+            guard let remote else { throw UniMateError.badURL }
+            do {
+                let result = try await operation(remote)
+                isOffline = false
+                return result
+            } catch is URLError {
+                isOffline = true
+                throw UniMateError.serverUnavailable
+            }
+        }
         if !isOffline, let remote {
             do {
                 return try await operation(remote)

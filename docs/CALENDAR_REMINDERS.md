@@ -8,7 +8,7 @@ Saving a calendar event does not add it to UniMate's timetable. Device-calendar 
 
 ## Run on Mac / iPhone
 
-1. Build the Pip scheme in Xcode 16 (iOS 17+). The synchronized source folder includes PlanSaveActions.swift automatically; XcodeGen also includes it through the Pip source directory.
+1. Build the UniMate app using the `Pip` scheme in Xcode 16 (iOS 17+). The synchronized source folder includes PlanSaveActions.swift automatically; XcodeGen also includes it through the `Pip` source directory.
 2. Generate a plan, ask about an event, and check that Save your plan appears underneath the answer.
 3. Add a new event; review its dates, cancel Apple's editor and verify nothing was saved. Repeat and save, then verify it in Apple Calendar. Select a planned activity and verify its times/location prefill. Check dark mode, Dynamic Type and a narrow iPhone display.
 4. Open Today > bell. Save one reminder without Notify me, close/reopen and relaunch UniMate: it should persist without a scheduled alert.

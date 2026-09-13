@@ -15,8 +15,24 @@ export interface SnowflakeSettings {
   role: string | null;
 }
 
+export interface ClaudeSettings {
+  /** ANTHROPIC_API_KEY; null disables the Claude extraction fallback */
+  apiKey: string | null;
+  /** PIP_CLAUDE_MODEL */
+  model: string;
+  /** PIP_CLAUDE_TIMEOUT_MS: one extraction request, then the heuristic parser answers */
+  timeoutMs: number;
+}
+
+/** Fast model for low-latency transcript extraction. */
+export const DEFAULT_CLAUDE_MODEL = 'claude-haiku-4-5';
+export const DEFAULT_CLAUDE_TIMEOUT_MS = 8000;
+
 export interface AppConfig {
   snowflake: SnowflakeSettings;
+  claude: ClaudeSettings;
+  /** ANTHROPIC_API_KEY is present */
+  claudeConfigured: boolean;
   /** account + user + (token or password) + warehouse are all present */
   snowflakeConfigured: boolean;
   /** MOCK_MODE as written in the environment */
@@ -76,8 +92,18 @@ export function loadConfig(env: Env): AppConfig {
     else if (/^([01]?\d|2[0-3]):[0-5]\d$/.test(demoRaw)) demoNow = demoRaw.padStart(5, '0');
   }
 
+  const claudeTimeoutRaw = str(env, 'PIP_CLAUDE_TIMEOUT_MS');
+  const claudeTimeout = claudeTimeoutRaw === null ? DEFAULT_CLAUDE_TIMEOUT_MS : Number.parseInt(claudeTimeoutRaw, 10);
+  const claude: ClaudeSettings = {
+    apiKey: str(env, 'ANTHROPIC_API_KEY'),
+    model: str(env, 'PIP_CLAUDE_MODEL') ?? DEFAULT_CLAUDE_MODEL,
+    timeoutMs: Number.isFinite(claudeTimeout) && claudeTimeout > 0 ? claudeTimeout : DEFAULT_CLAUDE_TIMEOUT_MS,
+  };
+
   return {
     snowflake,
+    claude,
+    claudeConfigured: claude.apiKey !== null,
     snowflakeConfigured,
     mockModeRequested,
     mode,

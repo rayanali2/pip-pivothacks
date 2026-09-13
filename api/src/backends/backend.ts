@@ -34,6 +34,8 @@ export interface CaptureVoiceInput {
   student_id: string;
   audio: AudioUpload | null;
   followup_plan_id: string | null;
+  /** iOS on-device speech result (multipart field client_transcript); null or absent when the app sent none */
+  client_transcript?: string | null;
 }
 
 export interface WarmPingResponse extends Sourced {

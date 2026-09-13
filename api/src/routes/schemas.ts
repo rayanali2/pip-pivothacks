@@ -13,12 +13,7 @@ const optionalId = z
   .transform((v) => (v === undefined || v === null || v === '' ? null : v));
 
 export const studentQuerySchema = z.object({
-  student_id: z
-    .string()
-    .trim()
-    .max(128)
-    .optional()
-    .transform((v) => (v === undefined || v === '' ? 'demo' : v)),
+  student_id: studentId,
 });
 
 export const captureTextSchema = z.object({
@@ -30,6 +25,13 @@ export const captureTextSchema = z.object({
 export const captureVoiceFieldsSchema = z.object({
   student_id: studentId,
   followup_plan_id: optionalId,
+  /** iOS on-device speech result; blank counts as absent */
+  client_transcript: z
+    .string()
+    .max(5000)
+    .nullable()
+    .optional()
+    .transform((v) => (v === undefined || v === null || v.trim() === '' ? null : v.trim())),
 });
 
 export const rerankSchema = z.object({
@@ -49,6 +51,12 @@ export const rerankSchema = z.object({
       if (c?.question !== undefined && c.question !== null && c.question.trim() !== '') out.question = c.question.trim();
       return out;
     }),
+  /** true: compute plan + diff, persist nothing */
+  preview: z
+    .boolean()
+    .nullable()
+    .optional()
+    .transform((v) => v === true),
 });
 
 const blockSchema = z

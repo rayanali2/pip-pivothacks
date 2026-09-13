@@ -10,6 +10,10 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegat
 
     /// Called on the main actor whenever speech starts (true) or finishes/cancels (false).
     var onSpeakingChanged: (@MainActor (Bool) -> Void)?
+    var onWord: (@MainActor () -> Void)?
+
+    static let speechRate: Float = AVSpeechUtteranceDefaultSpeechRate * 0.92
+    static let pitch: Float = 1.0
 
     override init() {
         super.init()
@@ -48,6 +52,7 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegat
                 guard player.play() else { throw URLError(.cannotDecodeContentData) }
                 self.request = nil
                 self.notify(true)
+                self.notifyWord()
             } catch {
                 guard !Task.isCancelled, self.generation == token, !Config.isMuted else { return }
                 self.request = nil
@@ -62,11 +67,23 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegat
         prepareSessionForPlayback()
 
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
-        utterance.pitchMultiplier = 1.05
+        utterance.voice = Self.preferredVoice
+        utterance.rate = Self.speechRate
+        utterance.pitchMultiplier = Self.pitch
         synthesizer.speak(utterance)
     }
+
+    private static let preferredVoice: AVSpeechSynthesisVoice? = {
+        let names = ["Ava", "Zoe", "Noelle", "Joelle", "Samantha", "Allison"]
+        let voices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language == "en-US" }
+        for quality in [AVSpeechSynthesisVoiceQuality.premium, .enhanced, .default] {
+            let matches = voices.filter { $0.quality == quality }
+            for name in names {
+                if let voice = matches.first(where: { $0.name.hasPrefix(name) }) { return voice }
+            }
+        }
+        return AVSpeechSynthesisVoice(language: "en-US")
+    }()
 
     func stop() {
         generation = UUID()
@@ -116,6 +133,18 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegat
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
         notify(false)
+    }
+
+    func speechSynthesizer(
+        _ synthesizer: AVSpeechSynthesizer,
+        willSpeakRangeOfSpeechString characterRange: NSRange,
+        utterance: AVSpeechUtterance
+    ) {
+        notifyWord()
+    }
+
+    private func notifyWord() {
+        Task { @MainActor [weak self] in self?.onWord?() }
     }
 
     private func notify(_ speaking: Bool) {

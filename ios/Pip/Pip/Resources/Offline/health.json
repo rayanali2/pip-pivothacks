@@ -18,5 +18,9 @@
     "errors": [
       "MOCK_MODE"
     ]
+  },
+  "claude": {
+    "configured": false,
+    "model": null
   }
 }
