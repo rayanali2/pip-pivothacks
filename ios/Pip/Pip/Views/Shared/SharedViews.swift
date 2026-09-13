@@ -3,8 +3,8 @@ import UIKit
 
 extension Color {
     /// Neutral grouped surface used for pills, chips and the transcript card.
-    static let pipSurface = Color(uiColor: .secondarySystemBackground)
-    static let pipField = Color(uiColor: .tertiarySystemFill)
+    static let pipSurface = PipDesign.mist
+    static let pipField = Color.white
 }
 
 /// "Snowflake" (with snowflake symbol) or "Local fallback".
@@ -17,7 +17,10 @@ struct SourceLabel: View {
             Text(source.label)
         }
         .font(.caption.weight(.medium))
-        .foregroundStyle(.secondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(PipDesign.mist, in: Capsule())
+        .foregroundStyle(PipDesign.secondary)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Source: \(source.label)")
     }
@@ -98,7 +101,8 @@ struct ChipButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.subheadline)
-            .foregroundStyle(Color.primary)
+            .frame(minHeight: 28)
+            .foregroundStyle(PipDesign.ink)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(Capsule().fill(Color.pipSurface))
@@ -114,6 +118,8 @@ struct HoldToTalkButton: View {
     let onRelease: () -> Void
 
     @State private var isPressed = false
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -126,12 +132,12 @@ struct HoldToTalkButton: View {
         .frame(width: diameter, height: diameter)
         .scaleEffect(isPressed ? 1.1 : 1)
         .shadow(color: Color.accentColor.opacity(isPressed ? 0.35 : 0.15), radius: isPressed ? 12 : 4, y: 2)
-        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8), value: isPressed)
         .contentShape(Circle())
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in
-                    if !isPressed {
+                    if isEnabled && !isPressed {
                         isPressed = true
                         onPress()
                     }
@@ -143,7 +149,13 @@ struct HoldToTalkButton: View {
         )
         .sensoryFeedback(.impact(weight: .medium), trigger: isPressed)
         .accessibilityElement()
-        .accessibilityLabel(isListening ? "Listening. Release to send." : "Hold to talk")
+        .opacity(isEnabled ? 1 : 0.45)
+        .accessibilityLabel(isListening ? "Stop recording and send" : "Hold to talk")
+        .accessibilityHint("Double tap to start recording. Double tap again to send.")
+        .accessibilityAction {
+            guard isEnabled else { return }
+            if isListening { onRelease() } else { onPress() }
+        }
         .accessibilityAddTraits(.isButton)
     }
 }
@@ -163,14 +175,15 @@ struct BannerView: View {
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PipDesign.secondary)
+                    .frame(width: 44, height: 44)
             }
             .accessibilityLabel("Dismiss")
         }
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.regularMaterial)
+                .fill(Color.white)
         )
         .padding(.horizontal, 16)
         .padding(.top, 8)

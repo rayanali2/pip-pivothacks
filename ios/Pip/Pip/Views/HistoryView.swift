@@ -13,13 +13,17 @@ struct HistoryView: View {
     var body: some View {
         NavigationStack {
             List {
+                SectionHeading(title: "Small steps, remembered.", subtitle: "What you chose, and why it made sense.")
+                    .listRowSeparator(.hidden).listRowBackground(Color.clear)
+                if mode != .pivots {
                 Picker("View", selection: $mode) {
                     Text("Decisions").tag(HistoryMode.decisions)
                     Text("Context").tag(HistoryMode.context)
-                    Text("Pivot Log").tag(HistoryMode.pivots)
                 }
                 .pickerStyle(.segmented)
                 .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                }
 
                 switch mode {
                 case .decisions:
@@ -30,8 +34,18 @@ struct HistoryView: View {
                     pivotRows
                 }
             }
-            .listStyle(.plain)
-            .navigationTitle("History")
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .pipScreen()
+            .navigationTitle(mode == .pivots ? "Pivot Log" : "History")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(mode == .pivots ? "Decisions" : "Pivot Log") {
+                        mode = mode == .pivots ? .decisions : .pivots
+                    }
+                    .font(.subheadline)
+                }
+            }
             .refreshable {
                 await refresh()
             }
@@ -56,8 +70,7 @@ struct HistoryView: View {
     @ViewBuilder
     private var decisionRows: some View {
         if model.history.isEmpty {
-            Text("No decisions yet. Talk to Pip to make your first plan.")
-                .foregroundStyle(.secondary)
+            PipStatusView(symbol: "clock.arrow.circlepath", title: "Your first step starts here", detail: "Talk to Pip to make a plan. Your decisions and actions will be saved here.")
                 .listRowSeparator(.hidden)
         } else {
             ForEach(sortedHistory) { entry in
@@ -69,8 +82,7 @@ struct HistoryView: View {
     @ViewBuilder
     private var contextRows: some View {
         if model.contextHistory.isEmpty {
-            Text("No context plans yet. Change free time on Today.")
-                .foregroundStyle(.secondary)
+            PipStatusView(symbol: "clock", title: "No context checks yet", detail: "Check your time before class on Today to save a recommendation and its context.")
                 .listRowSeparator(.hidden)
         } else {
             ForEach(model.contextHistory) { entry in
@@ -83,7 +95,7 @@ struct HistoryView: View {
     private var pivotRows: some View {
         if model.pivotLog.isEmpty {
             Text("No pivots logged yet.")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PipDesign.secondary)
                 .listRowSeparator(.hidden)
         } else {
             ForEach(sortedPivots) { entry in
@@ -110,32 +122,37 @@ private struct ContextHistoryRow: View {
             HStack(spacing: 8) {
                 Text(DateFormatting.dayTime(entry.createdAt) ?? entry.createdAt)
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                Text("rev \(s.revision)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(PipDesign.secondary)
                 Spacer(minLength: 4)
                 Text("\(plan.resultState.label) · \(plan.provenance.label)")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(PipDesign.secondary)
             }
             Text(inputLine(s))
                 .font(.footnote.monospacedDigit())
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PipDesign.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Text("Do now: \(plan.doNow?.label ?? "nothing fits")")
                 .font(.body.weight(.semibold))
             Text(plan.reason)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PipDesign.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if !entry.actions.isEmpty {
                 Label("Started · \(entry.actions.count == 1 ? "1 action" : "\(entry.actions.count) actions")", systemImage: "checkmark.circle")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PipDesign.secondary)
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 12)
+        .padding(.leading, 16)
+        .overlay(alignment: .leading) {
+            VStack(spacing: 5) {
+                Circle().fill(PipDesign.accent).frame(width: 7, height: 7)
+                Rectangle().fill(PipDesign.line).frame(width: 1)
+            }
+            .padding(.vertical, 14)
+        }
     }
 
     private func inputLine(_ s: ContextSnapshot) -> String {
@@ -164,21 +181,12 @@ private struct DecisionRow: View {
             HStack(spacing: 8) {
                 Text(DateFormatting.dayTime(entry.createdAt) ?? entry.createdAt)
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PipDesign.secondary)
                 Text(entry.trigger.label)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.accentColor)
                 Spacer(minLength: 4)
-                Text(entry.model)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-            }
 
-            if let quote {
-                Text("“\(quote)”")
-                    .font(.subheadline)
-                    .lineLimit(3)
             }
 
             if let title = entry.doNowTitle {
@@ -186,17 +194,41 @@ private struct DecisionRow: View {
                     .font(.body.weight(.semibold))
             }
 
+            if let quote {
+                Text("“\(quote)”").font(.subheadline).foregroundStyle(PipDesign.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let context = entry.context {
+                HStack(spacing: 12) {
+                    if let minutes = context.availableMinutes {
+                        Label("\(minutes) min available", systemImage: "clock")
+                    }
+                    if let cash = context.cashAvailable {
+                        Label(MoneyFormatting.dollars(cash), systemImage: "wallet.bifold")
+                    }
+                }
+                .font(.footnote).foregroundStyle(PipDesign.accent)
+            }
+
             Text(entry.changed)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PipDesign.secondary)
 
             ForEach(Array(entry.actions.enumerated()), id: \.offset) { pair in
                 Label(Self.actionText(pair.element), systemImage: "checkmark.circle")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PipDesign.secondary)
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 12)
+        .padding(.leading, 16)
+        .overlay(alignment: .leading) {
+            VStack(spacing: 5) {
+                Circle().fill(PipDesign.accent).frame(width: 7, height: 7)
+                Rectangle().fill(PipDesign.line).frame(width: 1)
+            }
+            .padding(.vertical, 14)
+        }
     }
 
     private static func actionText(_ action: HistoryAction) -> String {
@@ -226,10 +258,18 @@ private struct PivotRow: View {
                 Text(sentence)
                     .font(.subheadline)
                     .italic()
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PipDesign.secondary)
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 12)
+        .padding(.leading, 16)
+        .overlay(alignment: .leading) {
+            VStack(spacing: 5) {
+                Circle().fill(PipDesign.accent).frame(width: 7, height: 7)
+                Rectangle().fill(PipDesign.line).frame(width: 1)
+            }
+            .padding(.vertical, 14)
+        }
     }
 }
 
@@ -241,7 +281,7 @@ private struct PivotField: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PipDesign.secondary)
             Text(text)
                 .font(.subheadline)
                 .fixedSize(horizontal: false, vertical: true)

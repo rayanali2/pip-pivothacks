@@ -7,6 +7,7 @@ struct TodayPlanView: View {
         NavigationStack {
             content
                 .navigationTitle("Today")
+                .pipScreen()
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
@@ -32,11 +33,10 @@ struct TodayPlanView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     ContextSection()
-                    ContentUnavailableView(
-                        "No voice plan yet",
-                        systemImage: "bird",
-                        description: Text("Tell Pip about your day on the Pip tab")
-                    )
+                    PipStatusView(symbol: "text.bubble", title: "Make room for what matters", detail: "Tell Pip about your day to turn everything on your mind into one next step.")
+                        .pipCard()
+                    Button("Talk to Pip") { model.selectedTab = .home }
+                        .buttonStyle(PrimaryButtonStyle())
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 16)
@@ -49,18 +49,13 @@ struct TodayPlanView: View {
 
 private struct PlanScrollView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let plan: Plan
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                ContextSection()
-
-                Divider()
-
-                Text("From your voice plan")
-                    .font(.headline)
-
+                SectionHeading(title: "One thing at a time.", subtitle: "Start here. The rest has a place.")
                 header
 
                 if let diff = model.lastDiff {
@@ -69,11 +64,24 @@ private struct PlanScrollView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
-                answerAndWarnings
+                if model.pipState == .thinking {
+                    PipStatusView(symbol: "", title: "Updating your plan", detail: "Checking what fits your new constraints…", loading: true)
+                        .pipCard()
+                }
 
                 if let doNow = plan.doNow {
                     DoNowCard(item: doNow, planNow: plan.reasoning.now)
                 }
+
+                answerAndWarnings
+
+                DisclosureGroup {
+                    ContextSection().padding(.top, 12)
+                } label: {
+                    Label("Check time before class", systemImage: "clock.arrow.circlepath")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .pipCard()
 
                 if let next = plan.next {
                     PlanSectionList(title: "Next", items: [next], planNow: plan.reasoning.now)
@@ -89,7 +97,7 @@ private struct PlanScrollView: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
-            .animation(.spring(response: 0.45, dampingFraction: 0.85), value: plan.planId)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: plan.planId)
         }
     }
 
@@ -119,7 +127,7 @@ private struct PlanScrollView: View {
                 ForEach(Array(plan.reasoning.warnings.enumerated()), id: \.offset) { pair in
                     Label(pair.element.text, systemImage: "exclamationmark.triangle")
                         .font(.footnote)
-                        .foregroundStyle(Color.red)
+                        .foregroundStyle(PipDesign.warning)
                 }
             }
         }
@@ -142,8 +150,8 @@ struct WhatChangedBanner: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.vertical, 4)
-        .padding(.leading, 14)
+        .padding(14)
+        .background(PipDesign.mist, in: RoundedRectangle(cornerRadius: 12))
         .overlay(alignment: .leading) {
             Capsule()
                 .fill(Color.accentColor)
@@ -152,8 +160,8 @@ struct WhatChangedBanner: View {
     }
 }
 
-/// The only filled card on the screen.
-private struct DoNowCard: View {
+/// Shared by Home and Today; actions still use the original AppModel path.
+struct DoNowCard: View {
     @Environment(AppModel.self) private var model
     let item: PlanItem
     let planNow: String
@@ -183,7 +191,7 @@ private struct DoNowCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Do now")
+                Label("Do this now", systemImage: "sparkle")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.accentColor)
                 Spacer()
@@ -193,7 +201,7 @@ private struct DoNowCard: View {
             }
 
             Text(item.title)
-                .font(.title.bold())
+                .font(.system(.title, design: .rounded, weight: .bold))
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(item.action)
@@ -202,13 +210,13 @@ private struct DoNowCard: View {
 
             Text(item.why)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PipDesign.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let dueText {
                 Text(dueText)
                     .font(.footnote.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PipDesign.secondary)
             }
 
             Button {
@@ -223,7 +231,7 @@ private struct DoNowCard: View {
             if isStarted {
                 Label("Started · saved to History", systemImage: "checkmark")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PipDesign.secondary)
                     .transition(.opacity)
             }
 
@@ -236,15 +244,15 @@ private struct DoNowCard: View {
                         Image(systemName: "chevron.right")
                     }
                     .font(.footnote.weight(.medium))
+                .frame(minHeight: 44)
                 }
             }
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.accentColor.opacity(isHighlighted ? 0.2 : 0.1))
-        )
+        .pipCard(emphasized: true)
+        .overlay {
+            RoundedRectangle(cornerRadius: PipDesign.radius)
+                .strokeBorder(isHighlighted ? PipDesign.accent : .clear, lineWidth: 2)
+        }
     }
 }
 
@@ -256,9 +264,13 @@ private struct PlanSectionList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(title)
-                .font(.headline)
-                .padding(.bottom, 6)
+            HStack {
+                Text(title).font(PipDesign.heading)
+                Spacer()
+                Text("\(items.count)").font(.caption.weight(.semibold))
+                    .foregroundStyle(PipDesign.secondary)
+            }
+            .padding(.bottom, 10)
 
             ForEach(items) { item in
                 VStack(spacing: 0) {
@@ -288,53 +300,46 @@ private struct PlanSectionList: View {
     }
 }
 
-private struct PlanRow: View {
+struct PlanRow: View {
     let item: PlanItem
     let planNow: String
     let highlighted: Bool
     let showsChevron: Bool
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Text(item.timeLabel(relativeTo: planNow) ?? "Anytime")
-                .font(.footnote.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 78, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(Color.primary)
-                if item.kind == .fixedBlock {
-                    Text(item.action)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Text(item.why)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: item.kind == .fixedBlock ? "lock.fill" : "circle.dotted")
+                .font(.subheadline)
+                .foregroundStyle(PipDesign.accent)
+                .frame(width: 34, height: 34)
+                .background(PipDesign.mist, in: RoundedRectangle(cornerRadius: 10))
+            VStack(alignment: .leading, spacing: 6) {
+                Text(item.kind == .fixedBlock ? "FIXED CLASS" : "FLEXIBLE TASK")
+                    .font(.caption2.weight(.bold)).tracking(0.8).foregroundStyle(PipDesign.secondary)
+                Text(item.title).font(.body.weight(.semibold)).foregroundStyle(PipDesign.ink)
+                Text(item.timeLabel(relativeTo: planNow) ?? "When you have space")
+                    .font(.footnote.monospacedDigit()).foregroundStyle(PipDesign.accent)
+                Text(item.why).font(.subheadline).foregroundStyle(PipDesign.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                if let flag = item.flag {
-                    FlagPill(flag: flag)
-                        .padding(.top, 2)
+                if item.kind == .fixedBlock {
+                    Text(item.action).font(.footnote).foregroundStyle(PipDesign.secondary)
+                }
+                if let flag = item.flag { FlagPill(flag: flag) }
+                if highlighted {
+                    Label("Updated in this plan", systemImage: "arrow.up.arrow.down")
+                        .font(.caption.weight(.semibold)).foregroundStyle(PipDesign.accent)
                 }
             }
-
             Spacer(minLength: 0)
-
             if showsChevron {
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 4)
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold))
+                    .foregroundStyle(PipDesign.secondary).padding(.top, 10)
             }
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(highlighted ? Color.accentColor.opacity(0.14) : Color.clear)
-        )
+        .padding(16)
+        .background(highlighted ? PipDesign.mist : Color.white, in: RoundedRectangle(cornerRadius: 18))
+        .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(PipDesign.line) }
+        .padding(.vertical, 5)
         .contentShape(Rectangle())
     }
 }
@@ -354,6 +359,7 @@ private struct FollowUpBar: View {
 
     var body: some View {
         VStack(spacing: 10) {
+            if model.pipState == .listening && model.isFollowUpRecording { RecordingStatus() }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(chips, id: \.self) { chip in
@@ -380,16 +386,18 @@ private struct FollowUpBar: View {
 
                 HoldToTalkButton(
                     isListening: model.pipState == .listening && model.isFollowUpRecording,
-                    diameter: 40,
+                    diameter: 44,
                     onPress: { model.startFollowUpVoice() },
                     onRelease: { model.stopRecordingAndSend() }
                 )
+                .disabled(model.pipState == .thinking)
 
                 Button {
                     send()
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 32))
+                        .frame(width: 44, height: 44)
                 }
                 .disabled(trimmed.isEmpty || model.isBusy)
                 .accessibilityLabel("Send follow-up")
@@ -397,7 +405,7 @@ private struct FollowUpBar: View {
             .padding(.horizontal, 16)
         }
         .padding(.vertical, 10)
-        .background(.bar)
+        .background(PipDesign.background)
     }
 
     private func send() {

@@ -51,15 +51,15 @@ struct TaskDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                titleBlock
+                titleBlock.pipCard(emphasized: true)
                 if !facts.isEmpty {
-                    factsSection
+                    factsSection.pipCard()
                 }
                 if !item.evidence.isEmpty {
-                    evidenceSection
+                    evidenceSection.pipCard()
                 }
                 if !item.curve.isEmpty {
-                    curveSection
+                    curveSection.pipCard()
                 }
                 if item.taskId != nil {
                     actionsSection
@@ -67,6 +67,7 @@ struct TaskDetailView: View {
             }
             .padding(20)
         }
+        .pipScreen()
         .navigationTitle(item.title)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -83,7 +84,7 @@ struct TaskDetailView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Text(item.why)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PipDesign.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if let flag = item.flag {
                 FlagPill(flag: flag)
@@ -101,7 +102,7 @@ struct TaskDetailView: View {
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
                         Text(fact.label)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(PipDesign.secondary)
                             .frame(width: 110, alignment: .leading)
                         Text(fact.value)
                             .font(.subheadline)
@@ -116,7 +117,7 @@ struct TaskDetailView: View {
 
     private var evidenceSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Why this rank")
+            Text("Why this comes first")
                 .font(.headline)
             ForEach(Array(item.evidence.enumerated()), id: \.offset) { pair in
                 EvidenceRow(evidence: pair.element)
@@ -130,7 +131,7 @@ struct TaskDetailView: View {
                 .font(.headline)
             Text(curveCaption)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PipDesign.secondary)
             CostCurveChart(points: item.curve, hoursToDue: hoursToDue)
                 .frame(height: 200)
         }
@@ -151,7 +152,7 @@ struct TaskDetailView: View {
             if let message = model.actionMessage {
                 Text(message)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PipDesign.secondary)
             }
         }
     }
@@ -183,7 +184,7 @@ private struct EvidenceRow: View {
                     .foregroundStyle(evidence.fired ? Color.primary : Color.secondary)
                 Text(evidence.detail)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PipDesign.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
