@@ -6,7 +6,9 @@ struct RootView: View {
     var body: some View {
         @Bindable var model = model
         TabView(selection: $model.selectedTab) {
-            HomeView()
+            NavigationStack {
+                HomeView()
+            }
                 .tabItem { Label("Pip", systemImage: "bird") }
                 .tag(AppTab.home)
 
@@ -22,7 +24,8 @@ struct RootView: View {
                 .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
                 .tag(AppTab.history)
         }
-        .tint(Color.accentColor)
+        .tint(PipDesign.accent)
+        .preferredColorScheme(.light)
         .overlay(alignment: .top) {
             if let banner = model.errorBanner {
                 BannerView(text: banner) {

@@ -7,12 +7,19 @@ struct ScheduleView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    SectionHeading(title: "A little structure. More room.", subtitle: "Classes stay fixed. Your tasks can move.")
+                        .listRowBackground(Color.clear)
+                }
                 todaySection
+                unscheduledSection
                 weekSection
                 ProfileSection()
                 ServerSection()
             }
             .navigationTitle("Schedule")
+            .scrollContentBackground(.hidden)
+            .pipScreen()
             .scrollDismissesKeyboard(.interactively)
             .refreshable {
                 await model.refreshSchedule()
@@ -32,14 +39,73 @@ struct ScheduleView: View {
         (model.todayTimetable?.blocks ?? []).sorted { $0.startsAt < $1.startsAt }
     }
 
+    /// Display ordering only; the plan's ranking and suggested times remain untouched.
+    private struct DayEntry: Identifiable {
+        let id: String
+        let time: String
+        let block: TimetableBlock?
+        let item: PlanItem?
+    }
+
+    private var flexibleItems: [PlanItem] {
+        guard let plan = model.currentPlan else { return [] }
+        return ([plan.doNow, plan.next].compactMap { $0 } + plan.today)
+            .filter { $0.kind != .fixedBlock }
+    }
+
+    private var dayEntries: [DayEntry] {
+        let fixed = todayBlocks.map { DayEntry(id: "class-" + $0.id, time: $0.startsAt, block: $0, item: nil) }
+        let flexible = flexibleItems.compactMap { item -> DayEntry? in
+            guard let startsAt = item.startsAt, startsAt.count >= 16 else { return nil }
+            return DayEntry(id: item.itemId, time: String(startsAt.dropFirst(11).prefix(5)), block: nil, item: item)
+        }
+        return (fixed + flexible).sorted { $0.time == $1.time ? $0.id < $1.id : $0.time < $1.time }
+    }
+
     private var todaySection: some View {
-        Section("Today") {
-            if todayBlocks.isEmpty {
-                Text("No fixed blocks today.")
-                    .foregroundStyle(.secondary)
+        Section {
+            if let window = model.currentPlan?.freeWindowText ?? model.todayTimetable?.nextFreeWindow?.label {
+                Label(window, systemImage: "clock")
+                    .font(.subheadline.weight(.medium)).foregroundStyle(PipDesign.accent)
+            }
+            if dayEntries.isEmpty {
+                PipStatusView(symbol: "calendar", title: "Room to shape your day", detail: "No scheduled blocks yet. Talk to Pip or add a class below.")
             } else {
-                ForEach(todayBlocks) { block in
-                    TimelineBlockRow(block: block)
+                ForEach(dayEntries) { entry in
+                    if let block = entry.block {
+                        TimelineBlockRow(block: block)
+                    } else if let item = entry.item {
+                        NavigationLink {
+                            TaskDetailView(item: item, task: model.task(for: item), planNow: model.currentPlan?.reasoning.now)
+                        } label: {
+                            TimelineTaskRow(item: item)
+                        }
+                    }
+                }
+            }
+        } header: {
+            Text("Your day · in time order")
+        } footer: {
+            Text("Class times are fixed. Task times are suggested windows.")
+        }
+    }
+
+    @ViewBuilder
+    private var unscheduledSection: some View {
+        let unscheduled = flexibleItems.filter { $0.startsAt == nil }
+        if !unscheduled.isEmpty {
+            Section("Still to find a window") {
+                ForEach(unscheduled) { item in
+                    NavigationLink {
+                        TaskDetailView(item: item, task: model.task(for: item), planNow: model.currentPlan?.reasoning.now)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(item.title).font(.subheadline.weight(.semibold))
+                            Text(item.why).font(.footnote).foregroundStyle(PipDesign.secondary)
+                            if let flag = item.flag { FlagPill(flag: flag) }
+                        }
+                        .padding(.vertical, 6)
+                    }
                 }
             }
         }
@@ -70,7 +136,7 @@ struct ScheduleView: View {
         if !dayBlocks.isEmpty {
             Text(DateFormatting.weekdayName(day))
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PipDesign.secondary)
                 .textCase(.uppercase)
             ForEach(dayBlocks) { block in
                 WeekBlockRow(block: block)
@@ -113,33 +179,65 @@ struct ScheduleView: View {
 
 private struct TimelineBlockRow: View {
     let block: TimetableBlock
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .trailing, spacing: 2) {
+        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+        layout {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(DateFormatting.timeOfDay(block.startsAt))
                     .font(.subheadline.monospacedDigit())
                 Text(DateFormatting.timeOfDay(block.endsAt))
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PipDesign.secondary)
             }
-            .frame(width: 76, alignment: .trailing)
+            .frame(width: typeSize.isAccessibilitySize ? nil : 76, alignment: .leading)
 
             Capsule()
                 .fill(Color.accentColor)
                 .frame(width: 3, height: 36)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 5) {
+                Label("FIXED CLASS", systemImage: "lock.fill")
+                    .font(.caption2.weight(.bold)).foregroundStyle(PipDesign.accent)
                 Text(block.title)
                     .font(.body.weight(.medium))
                 if let location = block.location, !location.isEmpty {
                     Text(location)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(PipDesign.secondary)
                 }
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 10)
+    }
+}
+
+private struct TimelineTaskRow: View {
+    let item: PlanItem
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    var body: some View {
+        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+        layout {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(DateFormatting.time(item.startsAt) ?? "Anytime")
+                    .font(.subheadline.monospacedDigit())
+                if let end = DateFormatting.time(item.endsAt) {
+                    Text(end).font(.caption.monospacedDigit()).foregroundStyle(PipDesign.secondary)
+                }
+            }
+            .frame(width: typeSize.isAccessibilitySize ? nil : 76, alignment: .leading)
+            Circle().strokeBorder(PipDesign.accent, lineWidth: 1.5)
+                .frame(width: 7, height: 7).padding(.top, 6)
+            VStack(alignment: .leading, spacing: 5) {
+                Text("FLEXIBLE WINDOW").font(.caption2.weight(.bold)).foregroundStyle(PipDesign.accent)
+                Text(item.title).font(.body.weight(.medium))
+                Text(item.action).font(.footnote).foregroundStyle(PipDesign.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 10)
     }
 }
 
@@ -152,7 +250,7 @@ private struct WeekBlockRow: View {
                 .font(.body)
             Text(detail)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PipDesign.secondary)
         }
     }
 
@@ -272,7 +370,7 @@ private struct ProfileSection: View {
                 Text("Cash available")
                 Spacer()
                 Text("$")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PipDesign.secondary)
                 TextField("0", text: $cashText)
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
@@ -313,7 +411,7 @@ private struct ProfileSection: View {
                     } else if let savedMessage {
                         Text(savedMessage)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(PipDesign.secondary)
                     }
                 }
             }
@@ -398,7 +496,7 @@ private struct ServerSection: View {
             if let status = model.connectionStatus {
                 Text(status)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PipDesign.secondary)
             }
 
             if let health = model.health {
