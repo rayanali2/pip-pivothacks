@@ -365,15 +365,23 @@ export class LiveBackend implements Backend {
 
   private async captureFlow(capture: Capture): Promise<CaptureResponse> {
     const now = this.clock.now();
+    const started = performance.now();
     await this.extractForCapture(capture, now);
+    const extractedAt = performance.now();
+    const question = heuristicExtract(capture.transcript, now, []).question;
+    // A generic "what should I do?" is answered by the ranked plan itself.
+    // Other questions keep the existing AI wording/answer path.
+    const genericQuestion = question !== null && /^what should i do(?: first| next)?[?.!]*$/i.test(question.trim());
+    const fast = this.config.fastCapturePlan && (!question || genericQuestion);
     const outcome = await this.planWithFallback({
       studentId: capture.student_id,
       captureId: capture.capture_id,
       trigger: 'capture',
-      context: { available_minutes: null, cash_available: null, question: heuristicExtract(capture.transcript, now, []).question },
-      extra: {},
+      context: { available_minutes: null, cash_available: null, question },
+      extra: fast ? { skip_llm: true } : {},
       previous: null,
     });
+    log.info(`capture timing extraction_ms=${Math.round(extractedAt - started)} plan_ms=${Math.round(performance.now() - extractedAt)} fast=${fast}`);
     return {
       source: outcome.source,
       capture,

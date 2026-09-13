@@ -14,12 +14,27 @@ export function speechRouter(): Router {
       res.status(503).json({ error: 'Speech is unavailable.' });
       return;
     }
-    const voice = process.env.ELEVENLABS_VOICE_ID?.trim() || 'JBFqnCBsd6RMkjVDRZzb';
+    const voice = process.env.ELEVENLABS_VOICE_ID?.trim() || 'EXAVITQu4vr4xnSDxMaL';
+    const setting = (name: string, fallback: number, min: number, max: number): number => {
+      const raw = process.env[name]?.trim();
+      const value = raw ? Number(raw) : NaN;
+      return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+    };
     try {
       const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_128`, {
         method: 'POST',
         headers: { 'xi-api-key': key, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
-        body: JSON.stringify({ text: text.trim(), model_id: 'eleven_multilingual_v2' }),
+        body: JSON.stringify({
+          text: text.trim(),
+          model_id: process.env.ELEVENLABS_MODEL_ID?.trim() || 'eleven_flash_v2_5',
+          voice_settings: {
+            stability: setting('ELEVENLABS_STABILITY', 0.4, 0, 1),
+            similarity_boost: 0.75,
+            style: 0,
+            use_speaker_boost: false,
+            speed: setting('ELEVENLABS_SPEED', 1.03, 0.7, 1.2),
+          },
+        }),
         signal: AbortSignal.timeout(15000),
       });
       if (!response.ok) throw new Error('Speech provider unavailable');

@@ -32,6 +32,23 @@ describe('recommendation speech', () => {
     expect(response.headers['cache-control']).toBe('no-store');
     expect(response.body).toEqual(Buffer.from([73, 68, 51]));
     expect(fetcher.mock.calls[0]?.[0]).toContain('/test-voice?');
+    const sent = JSON.parse(fetcher.mock.calls[0]?.[1].body as string);
+    expect(sent.model_id).toBe('eleven_flash_v2_5');
+    expect(sent.voice_settings).toEqual({ stability: 0.4, similarity_boost: 0.75, style: 0, use_speaker_boost: false, speed: 1.03 });
+  });
+
+  it('supports reverting the model and bounds invalid voice settings', async () => {
+    vi.stubEnv('ELEVENLABS_API_KEY', 'test-only-credential');
+    vi.stubEnv('ELEVENLABS_MODEL_ID', 'eleven_multilingual_v2');
+    vi.stubEnv('ELEVENLABS_STABILITY', '-2');
+    vi.stubEnv('ELEVENLABS_SPEED', 'invalid');
+    const fetcher = vi.fn().mockResolvedValue(new Response(new Uint8Array([73, 68, 51])));
+    vi.stubGlobal('fetch', fetcher);
+    await request(createApp(mockService())).post('/speech').send({ text: 'Take a short break.' });
+    const sent = JSON.parse(fetcher.mock.calls[0]?.[1].body as string);
+    expect(sent.model_id).toBe('eleven_multilingual_v2');
+    expect(sent.voice_settings.stability).toBe(0);
+    expect(sent.voice_settings.speed).toBe(1.03);
   });
 
   it('redacts upstream errors so device speech can take over', async () => {

@@ -195,6 +195,32 @@ describe('LiveBackend', () => {
     expect(executor.calls.length).toBeGreaterThan(0);
   });
 
+  it.each([
+    { enabled: true, text: 'I need to tidy my desk.', fast: true },
+    { enabled: true, text: DEMO_TRANSCRIPT, fast: true },
+    { enabled: false, text: DEMO_TRANSCRIPT, fast: false },
+    { enabled: true, text: 'Can I afford lunch?', fast: false },
+  ])('capture fast=$fast with enabled=$enabled preserves extraction, tasks and ranking', async ({ enabled, text, fast }) => {
+    const executor = new FakeExecutor((sql, binds) => {
+      if (sql.startsWith('CALL PIP.APP.EXTRACT_FROM_TRANSCRIPT')) {
+        return [{ EXTRACT_FROM_TRANSCRIPT: { tasks: [{ task_id: 'demo-return-headphones' }], constraints: [], model: 'test', attempts: 1 } }];
+      }
+      if (sql.startsWith('CALL PIP.APP.BUILD_PLAN')) {
+        return [{ BUILD_PLAN: asSnowflakeVariant(rankerPlan('test-plan', String(binds[1]), EMPTY_CONTEXT, 'sql-prerank')) }];
+      }
+      if (sql.startsWith('SELECT') && sql.includes('FROM PIP.APP.TASKS')) return taskRows(demoNow());
+      return [];
+    });
+    const backend = new LiveBackend({ ...config, fastCapturePlan: enabled }, fixedClock(demoNow()), executor);
+    const result = await backend.captureText({ student_id: 'demo', text, followup_plan_id: null });
+    const extra = JSON.parse(String(executor.find('CALL PIP.APP.BUILD_PLAN')?.binds[2]));
+    expect(extra.skip_llm === true).toBe(fast);
+    expect(executor.find('CALL PIP.APP.EXTRACT_FROM_TRANSCRIPT')).toBeDefined();
+    expect(result.source).toBe('snowflake');
+    expect(result.tasks).toHaveLength(6);
+    expect(result.plan.do_now?.task_id).toBe('demo-return-headphones');
+  });
+
   it('(b)+(d) BUILD_PLAN VARIANT -> source snowflake, offsets, 5 evidence entries, no cortex_errors; every SQL logged via logSql', async () => {
     const now = demoNow();
     const executor = new FakeExecutor((sql, binds) => {
@@ -236,7 +262,7 @@ describe('LiveBackend', () => {
     const buildCall = executor.find('CALL PIP.APP.BUILD_PLAN');
     expect(buildCall?.sql).toBe('CALL PIP.APP.BUILD_PLAN(?, ?, PARSE_JSON(?))');
     const extra: unknown = JSON.parse(String(buildCall?.binds[2]));
-    expect(extra).toEqual({ now_local: ntz(`${res.plan.reasoning.now}`), trigger: 'capture' });
+    expect(extra).toEqual({ now_local: ntz(`${res.plan.reasoning.now}`), trigger: 'capture', skip_llm: true });
     expect(executor.find('INSERT INTO PIP.APP.CAPTURES')?.binds.slice(0, 5)).toEqual([res.capture.capture_id, 'demo', null, DEMO_TRANSCRIPT, 'text']);
     expect(executor.find('INSERT INTO PIP.APP.PLANS')).toBeUndefined();
 

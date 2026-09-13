@@ -671,7 +671,7 @@ final class AppModel {
             parts.append(answer)
         }
         let action = doNow.action.hasSuffix(".") ? String(doNow.action.dropLast()) : doNow.action
-        parts.append("Do now: \(action).")
+        parts.append("Here's your next step. \(action).")
         parts.append(doNow.why)
         speakOrIdle(parts.joined(separator: " "))
     }
