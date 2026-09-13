@@ -173,7 +173,7 @@ describe('LiveBackend', () => {
     expect((await service.timetable('real-outage')).blocks).toEqual([]);
   });
 
-  it('(a) every Snowflake call throws -> PipService answers 200-shaped data with source fallback', async () => {
+  it('(a) every Snowflake call throws -> UniMateService answers 200-shaped data with source fallback', async () => {
     const executor = new FakeExecutor(() => {
       throw new Error('snowflake unreachable');
     });
@@ -258,7 +258,7 @@ describe('LiveBackend', () => {
     const buildCall = executor.find('CALL PIP.APP.BUILD_PLAN');
     expect(buildCall?.sql).toBe('CALL PIP.APP.BUILD_PLAN(?, ?, PARSE_JSON(?))');
     const extra: unknown = JSON.parse(String(buildCall?.binds[2]));
-    expect(extra).toEqual({ now_local: ntz(`${res.plan.reasoning.now}`), trigger: 'capture' });
+    expect(extra).toEqual({ now_local: ntz(`${res.plan.reasoning.now}`), trigger: 'capture', skip_llm: true });
     expect(executor.find('INSERT INTO PIP.APP.CAPTURES')?.binds.slice(0, 5)).toEqual([res.capture.capture_id, 'demo', null, DEMO_TRANSCRIPT, 'text']);
     expect(executor.find('INSERT INTO PIP.APP.PLANS')).toBeUndefined();
 

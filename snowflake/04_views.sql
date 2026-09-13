@@ -1,5 +1,5 @@
 -- =============================================================================
--- Pip / Snowflake layer  --  04_views.sql
+-- UniMate / Snowflake layer  --  04_views.sql
 -- Views use CURRENT_DATE() / CURRENT_TIMESTAMP(), so they follow the session
 -- TIMEZONE (ALTER SESSION SET TIMEZONE = '<IANA zone>').
 -- =============================================================================

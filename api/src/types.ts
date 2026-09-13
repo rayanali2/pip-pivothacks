@@ -1,4 +1,4 @@
-// Pip API contract — the single source of truth shared by:
+// UniMate API contract — the single source of truth shared by:
 //   api/        (these types, verbatim)
 //   snowflake/  (BUILD_PLAN / EXTRACT_FROM_TRANSCRIPT / RECORD_ACTION return these JSON shapes)
 //   ios/        (Codable models decode these with .convertFromSnakeCase)
@@ -215,7 +215,7 @@ export interface PreRankEntry {
 export type PlanTrigger = 'capture' | 'rerank' | 'seed';
 
 export interface PlanReasoning {
-  /** 1–2 sentences Pip can speak as an overview */
+  /** 1–2 sentences UniMate can speak as an overview */
   summary: string;
   /** the scenario clock the plan was computed for */
   now: IsoDateTime;

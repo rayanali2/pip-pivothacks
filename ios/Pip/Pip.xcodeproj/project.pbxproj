@@ -363,9 +363,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Support/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Pip;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pip listens while you hold the talk button so it can plan your day.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pip turns what you say into text on your iPhone so it can plan your day.";
+				INFOPLIST_KEY_CFBundleDisplayName = UniMate;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "UniMate listens while you hold the talk button so it can plan your day.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "UniMate turns what you say into text on your iPhone so it can plan your day.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -397,9 +397,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Support/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Pip;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pip listens while you hold the talk button so it can plan your day.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pip turns what you say into text on your iPhone so it can plan your day.";
+				INFOPLIST_KEY_CFBundleDisplayName = UniMate;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "UniMate listens while you hold the talk button so it can plan your day.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "UniMate turns what you say into text on your iPhone so it can plan your day.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -428,7 +428,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PipWidgets/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Pip;
+				INFOPLIST_KEY_CFBundleDisplayName = UniMate;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -455,7 +455,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PipWidgets/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Pip;
+				INFOPLIST_KEY_CFBundleDisplayName = UniMate;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (

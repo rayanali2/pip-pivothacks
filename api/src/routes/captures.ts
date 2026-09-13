@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import multer from 'multer';
-import type { PipService } from '../service';
+import type { UniMateService } from '../service';
 import { captureTextSchema, captureVoiceFieldsSchema } from './schemas';
 import { asyncRoute, parseInput } from './util';
 
 export const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
 
-export function capturesRouter(service: PipService): Router {
+export function capturesRouter(service: UniMateService): Router {
   const router = Router();
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_AUDIO_BYTES, files: 1 } });
 

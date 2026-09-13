@@ -40,7 +40,7 @@ struct ScheduleView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .pipScreen()
+            .uniMateScreen()
             .scrollDismissesKeyboard(.interactively)
             .refreshable {
                 await model.refreshSchedule()
@@ -90,18 +90,18 @@ struct ScheduleView: View {
             if let window = model.currentPlan?.freeWindowText ?? model.todayTimetable?.nextFreeWindow?.label {
                 Label(window, systemImage: "hourglass")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(PipDesign.accent)
+                    .foregroundStyle(UniMateDesign.accent)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if dayEntries.isEmpty {
-                PipStatusView(symbol: "calendar", title: "Nothing scheduled today", detail: "Tap + to add a class.")
+                UniMateStatusView(symbol: "calendar", title: "Nothing scheduled today", detail: "Tap + to add a class.")
                     .padding(.vertical, 4)
             } else {
                 ForEach(dayEntries) { entry in
                     if let block = entry.block {
                         DisclosureGroup {
                             Label(block.location ?? "No location added", systemImage: "mappin.and.ellipse")
-                                .font(.subheadline).foregroundStyle(PipDesign.secondary)
+                                .font(.subheadline).foregroundStyle(UniMateDesign.secondary)
                                 .padding(.vertical, 8)
                         } label: {
                             TimelineBlockRow(block: block)
@@ -137,7 +137,7 @@ struct ScheduleView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                             Text(item.action)
                                 .font(.footnote)
-                                .foregroundStyle(PipDesign.secondary)
+                                .foregroundStyle(UniMateDesign.secondary)
                                 .lineLimit(2)
                                 .fixedSize(horizontal: false, vertical: true)
                             if let flag = item.flag {
@@ -237,7 +237,7 @@ private struct TimelineBlockRow: View {
                     .fixedSize(horizontal: true, vertical: false)
                 Text(DateFormatting.timeOfDay(block.endsAt))
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
@@ -247,8 +247,8 @@ private struct TimelineBlockRow: View {
                 Text(block.title)
                     .font(.body.weight(.semibold))
                     .fixedSize(horizontal: false, vertical: true)
-                PipFlowLayout {
-                    PipPill(text: "Class", systemImage: "lock.fill")
+                UniMateFlowLayout {
+                    UniMatePill(text: "Class", systemImage: "lock.fill")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -257,7 +257,7 @@ private struct TimelineBlockRow: View {
                 if !stacked {
                     // Full-height rail marks a fixed class.
                     Capsule()
-                        .fill(PipDesign.accent)
+                        .fill(UniMateDesign.accent)
                         .frame(width: 3)
                         .frame(width: 7)
                 }
@@ -284,7 +284,7 @@ private struct TimelineTaskRow: View {
                 if let end = DateFormatting.time(item.endsAt) {
                     Text(end)
                         .font(.caption.monospacedDigit())
-                        .foregroundStyle(PipDesign.secondary)
+                        .foregroundStyle(UniMateDesign.secondary)
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
                 }
@@ -295,13 +295,13 @@ private struct TimelineTaskRow: View {
                 Text(item.title)
                     .font(.body.weight(.semibold))
                     .fixedSize(horizontal: false, vertical: true)
-                PipFlowLayout {
-                    PipPill(text: "Flexible", systemImage: "circle.dashed", tint: PipDesign.secondary)
+                UniMateFlowLayout {
+                    UniMatePill(text: "Flexible", systemImage: "circle.dashed", tint: UniMateDesign.secondary)
                     if let category = item.category, category != .unknown {
-                        PipPill(text: category.label, systemImage: PlanVisuals.symbol(for: category), tint: PipDesign.secondary)
+                        UniMatePill(text: category.label, systemImage: PlanVisuals.symbol(for: category), tint: UniMateDesign.secondary)
                     }
                     if let minutes = PlanVisuals.windowMinutes(item) {
-                        PipPill(text: "\(minutes) min", systemImage: "timer", tint: PipDesign.secondary)
+                        UniMatePill(text: "\(minutes) min", systemImage: "timer", tint: UniMateDesign.secondary)
                     }
                     if let flag = item.flag {
                         FlagPill(flag: flag)
@@ -309,7 +309,7 @@ private struct TimelineTaskRow: View {
                 }
                 Text(item.action)
                     .font(.footnote)
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -319,7 +319,7 @@ private struct TimelineTaskRow: View {
                 if !stacked {
                     // Hollow ring marks a flexible, suggested time.
                     Circle()
-                        .strokeBorder(PipDesign.accent, lineWidth: 1.5)
+                        .strokeBorder(UniMateDesign.accent, lineWidth: 1.5)
                         .frame(width: 7, height: 7)
                         .padding(.top, 8)
                 }
@@ -339,7 +339,7 @@ private struct WeekBlockRow: View {
                 .fixedSize(horizontal: false, vertical: true)
             Text(detail)
                 .font(.subheadline.monospacedDigit())
-                .foregroundStyle(PipDesign.secondary)
+                .foregroundStyle(UniMateDesign.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.vertical, 2)
@@ -405,7 +405,7 @@ private struct AddBlockSheet: View {
                 if !timesValid {
                     Label("End must be after start.", systemImage: "exclamationmark.circle.fill")
                         .font(.footnote.weight(.medium))
-                        .foregroundStyle(PipDesign.danger)
+                        .foregroundStyle(UniMateDesign.danger)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -468,7 +468,7 @@ private struct ProfileSection: View {
                 }
                 HStack {
                     Text("$")
-                        .foregroundStyle(PipDesign.secondary)
+                        .foregroundStyle(UniMateDesign.secondary)
                     TextField("0", text: $cashText)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(stacked ? .leading : .trailing)
@@ -510,9 +510,9 @@ private struct ProfileSection: View {
                         ProgressView()
                     } else if let savedMessage {
                         Label(savedMessage, systemImage: "checkmark")
-                            .labelStyle(PipCompactLabelStyle())
+                            .labelStyle(UniMateCompactLabelStyle())
                             .font(.footnote.weight(.medium))
-                            .foregroundStyle(PipDesign.positive)
+                            .foregroundStyle(UniMateDesign.positive)
                     }
                 }
             }
@@ -597,7 +597,7 @@ private struct ServerSection: View {
             if let status = model.connectionStatus {
                 Text(status)
                     .font(.footnote)
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -651,7 +651,7 @@ private struct HealthSummary: View {
             if let error = health.snowflake.error, !error.isEmpty, !isOffline {
                 Text(error)
                     .font(.footnote)
-                    .foregroundStyle(PipDesign.danger)
+                    .foregroundStyle(UniMateDesign.danger)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

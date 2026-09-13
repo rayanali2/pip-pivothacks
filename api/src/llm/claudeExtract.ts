@@ -103,7 +103,7 @@ export const OUTPUT_SCHEMA: { [key: string]: unknown } = {
   },
 };
 
-export const SYSTEM_PROMPT = `You turn a first-year university student's spoken or typed brain dump into structured data for Pip, a day planner. The student is overloaded; your output decides what Pip ranks, so extract only what was actually said.
+export const SYSTEM_PROMPT = `You turn a first-year university student's spoken or typed brain dump into structured data for UniMate, a day planner. The student is overloaded; your output decides what UniMate ranks, so extract only what was actually said.
 
 What goes where:
 - tasks: things the student has to do (return an item, finish an assignment, buy groceries, pay rent, sleep).

@@ -64,12 +64,12 @@ import {
 } from '../pipeline';
 import { isConnectionError, putFile, SnowflakeClient, withSqlLogging, withTimeout, type SqlExecutor } from '../snowflake/client';
 import { describeCortex, emptyCortexStatus, readCortexConfig, verifyCortex } from '../snowflake/cortex';
-import { PipRepo, readExtractResult, type ExtractSummary } from '../snowflake/repo';
+import { UniMateRepo, readExtractResult, type ExtractSummary } from '../snowflake/repo';
 import { asRecord, normalizePlanFromSnowflake, parseAction, procedureError } from '../snowflake/rows';
 import type { Backend, CaptureTextInput, CaptureVoiceInput, WarmPingResponse } from './backend';
 
 export interface LiveTimeouts {
-  /** captureText / captureVoice / rerank (below the iOS 60 s timeout, so PipService can still fall back) */
+  /** captureText / captureVoice / rerank (below the iOS 60 s timeout, so UniMateService can still fall back) */
   captureMs: number;
   /** every other Snowflake-touching method */
   defaultMs: number;
@@ -146,13 +146,13 @@ function hadCortexErrors(raw: unknown): boolean {
 /**
  * Snowflake-backed implementation. Plans come from CALL BUILD_PLAN (source 'snowflake'); when BUILD_PLAN fails or returns
  * an invalid plan, the TypeScript ranker runs over Snowflake-loaded data and the plan is stored in PLANS (source 'fallback').
- * Anything that cannot reach Snowflake throws (or times out), and PipService answers from the in-memory backend instead.
+ * Anything that cannot reach Snowflake throws (or times out), and UniMateService answers from the in-memory backend instead.
  */
 export class LiveBackend implements Backend {
   readonly config: AppConfig;
   readonly clock: Clock;
   private readonly db: SqlExecutor;
-  private readonly repo: PipRepo;
+  private readonly repo: UniMateRepo;
   private readonly client: SnowflakeClient | null;
   private readonly timeouts: LiveTimeouts;
   private readonly extractor: TranscriptExtractor;
@@ -176,7 +176,7 @@ export class LiveBackend implements Backend {
       this.client = new SnowflakeClient({ settings: config.snowflake, timezone: config.timezone });
       this.db = this.client;
     }
-    this.repo = new PipRepo(this.db);
+    this.repo = new UniMateRepo(this.db);
   }
 
   async close(): Promise<void> {
@@ -459,16 +459,23 @@ export class LiveBackend implements Backend {
 
   private async captureFlow(capture: Capture, transcribe: PipelineStage): Promise<CaptureResponse> {
     const now = this.clock.now();
+    const started = performance.now();
     const question = heuristicExtract(capture.transcript, now, []).question;
     const extract = await this.extractForCapture(capture, now, question);
+    const extractedAt = performance.now();
+    // A generic "what should I do?" is answered by the ranked plan itself.
+    // Other questions keep the existing AI wording/answer path.
+    const genericQuestion = question !== null && /^what should i do(?: first| next)?[?.!]*$/i.test(question.trim());
+    const fast = this.config.fastCapturePlan && (!question || genericQuestion);
     const outcome = await this.planWithFallback({
       studentId: capture.student_id,
       captureId: capture.capture_id,
       trigger: 'capture',
       context: { available_minutes: null, cash_available: null, question },
-      extra: {},
+      extra: fast ? { skip_llm: true } : {},
       previous: null,
     });
+    log.info(`capture timing extraction_ms=${Math.round(extractedAt - started)} plan_ms=${Math.round(performance.now() - extractedAt)} fast=${fast}`);
     return {
       source: outcome.source,
       capture,

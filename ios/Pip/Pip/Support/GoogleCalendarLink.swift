@@ -17,7 +17,7 @@ enum GoogleCalendarLink {
             URLQueryItem(name: "text", value: name),
             URLQueryItem(name: "dates", value: "\(format.string(from: start))/\(format.string(from: end))"),
             URLQueryItem(name: "location", value: location),
-            URLQueryItem(name: "details", value: "Added from Pip.")
+            URLQueryItem(name: "details", value: "Added from UniMate.")
         ]
         // '+' must be encoded because web query parsers can interpret it as a space.
         let encodedQuery = url?.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")

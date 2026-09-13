@@ -53,7 +53,7 @@ function pipExtractPrompt(transcript, nowStr, openTasks, profile) {
     taskLines.push('  - id "' + openTasks[i].id + '" | ' + openTasks[i].category + ' | ' + openTasks[i].text);
   }
   return [
-    'You extract tasks and constraints for Pip, a day planner for a first-time independent university student.',
+    'You extract tasks and constraints for UniMate, a day planner for a first-time independent university student.',
     'Reply with ONLY one JSON object (no prose, no code fences) with exactly this shape:',
     '{"tasks":[{"raw_text":"...","normalized_text":"...","category":"...","due_at":"YYYY-MM-DDTHH:MI:SS or null","money_at_risk":0,"est_minutes":0,"existing_task_id":"id or null"}],"constraints":[{"kind":"...","value":{}}]}',
     '',

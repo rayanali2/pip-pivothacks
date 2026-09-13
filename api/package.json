@@ -1,8 +1,8 @@
 {
-  "name": "pip-api",
+  "name": "unimate-api",
   "version": "0.1.0",
   "private": true,
-  "description": "Pip API: voice-first day planner for first-time independent university students (Snowflake + deterministic fallback)",
+  "description": "UniMate API: voice-first day planner for first-time independent university students (Snowflake + deterministic fallback)",
   "main": "dist/server.js",
   "engines": {
     "node": ">=20"

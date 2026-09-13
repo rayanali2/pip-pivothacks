@@ -4,15 +4,15 @@ import Foundation
 /// is unreachable. Keeps a little in-memory state so captures, reruns and "Start now"
 /// show up in History. Every response reports source "fallback".
 @MainActor
-final class OfflineService: PipService {
+final class OfflineService: UniMateService {
     let isOffline = true
 
-    private let decoder = PipCoding.makeDecoder()
+    private let decoder = UniMateCoding.makeDecoder()
     private var historyEntries: [HistoryEntry]?
     private var weekBlocks: [TimetableBlock]?
     private var storedProfile: Profile?
     private var knownPlans: [String: Plan] = [:]
-    private var knownTasks: [PipTask] = []
+    private var knownTasks: [UniMateTask] = []
 
     enum Fixture: String {
         case health
@@ -27,15 +27,15 @@ final class OfflineService: PipService {
     }
 
     func load<T: Decodable>(_ fixture: Fixture, as type: T.Type) throws -> T {
-        guard Config.isDemoMode else { throw PipError.server("Pip cannot make a new plan while offline. Reconnect to the server and try again; your input has not been replaced with a demo.") }
+        guard Config.isDemoMode else { throw UniMateError.server("UniMate cannot make a new plan while offline. Reconnect to the server and try again; your input has not been replaced with a demo.") }
         guard let url = Bundle.main.url(forResource: fixture.rawValue, withExtension: "json") else {
-            throw PipError.missingFixture(fixture.rawValue)
+            throw UniMateError.missingFixture(fixture.rawValue)
         }
         let data = try Data(contentsOf: url)
         return try decoder.decode(type, from: data)
     }
 
-    // MARK: PipService
+    // MARK: UniMateService
 
     func health() async throws -> HealthResponse {
         var response = try load(.health, as: HealthResponse.self)
@@ -45,11 +45,11 @@ final class OfflineService: PipService {
 
     // Context planning is computed by the API; nothing is bundled, so offline never shows a stored answer as new.
     func contextPlan(requestID: String, statedMinutes: Int?) async throws -> ContextPlanResponse {
-        throw PipError.server("Live context planning needs the Pip API.")
+        throw UniMateError.server("Live context planning needs the UniMate API.")
     }
 
     func contextAction(requestID: String, planRequestID: String) async throws -> ContextActionResponse {
-        throw PipError.server("Live context planning needs the Pip API.")
+        throw UniMateError.server("Live context planning needs the UniMate API.")
     }
 
     func contextHistory() async throws -> ContextHistoryResponse {
@@ -57,7 +57,7 @@ final class OfflineService: PipService {
     }
 
     func contextPreview(planRequestID: String, overrun: ContextOverrunInput) async throws -> ContextPreviewResponse {
-        throw PipError.server("Live context planning needs the Pip API.")
+        throw UniMateError.server("Live context planning needs the UniMate API.")
     }
 
     // Fixtures ignore the on-device transcript, exactly like mock voice capture ignores the audio.
@@ -80,7 +80,7 @@ final class OfflineService: PipService {
 
     func rerank(planID: String, context: RerankContextInput, preview: Bool) async throws -> RerankResponse {
         // The one stored rerank can't answer an arbitrary "what if", so previews never pretend to.
-        guard !preview else { throw PipError.previewNeedsServer }
+        guard !preview else { throw UniMateError.previewNeedsServer }
         // rerank_25 only answers a question or exactly 25 minutes; any other free time must not show its plan.
         if context.question == nil, context.availableMinutes != Self.rerankFixtureMinutes {
             return try fullWindowRerank(planID: planID, minutes: context.availableMinutes)
@@ -179,7 +179,7 @@ final class OfflineService: PipService {
             historyEntries = entries
         }
 
-        var task: PipTask?
+        var task: UniMateTask?
         if let templateTask = template?.task, templateTask.taskId == taskID {
             task = templateTask
         } else if let taskID {
@@ -220,7 +220,7 @@ final class OfflineService: PipService {
         let reasoning = base.reasoning
         let windowMinutes = reasoning.freeWindow?.minutes ?? reasoning.effectiveMinutes
         if let minutes, minutes < windowMinutes {
-            throw PipError.server("Replanning for \(minutes) min needs the Pip server.")
+            throw UniMateError.server("Replanning for \(minutes) min needs the UniMate server.")
         }
 
         let previous = knownPlans[planID]
@@ -322,13 +322,13 @@ final class OfflineService: PipService {
 
     /// Always synthesized, even if a fixture carries a pipeline: a recorded pipeline would name
     /// engines and timings from when the fixture was made, not from this answer.
-    private func offlineStages(transcript: String?, typed: Bool, extractedTasks: [PipTask]?, plan: Plan) -> [PipelineStage] {
-        PipelineFallback.stages(
+    private func offlineStages(transcript: String?, typed: Bool, extractedTasks: [UniMateTask]?, plan: Plan) -> [UniMateelineStage] {
+        UniMateelineFallback.stages(
             transcript: transcript,
             typed: typed,
             extractedTasks: extractedTasks,
             plan: plan,
-            engine: PipelineFallback.offlineEngine,
+            engine: UniMateelineFallback.offlineEngine,
             status: "fallback"
         )
     }

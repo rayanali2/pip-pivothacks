@@ -38,7 +38,7 @@ function tracedFallback<T extends { pipeline: PipelineStage[] }>(value: T, reaso
  * live: the live backend first; on ANY error, log a warning and run the same operation on memory (source 'fallback').
  * Capture and rerank pipelines from that memory run are marked 'fallback' with the reason on the first stage.
  */
-export class PipService {
+export class UniMateService {
   readonly mode: Mode;
   readonly memory: MemoryBackend;
   readonly live: Backend | null;

@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Home card shown while Pip thinks: each step from words to plan, named by the engine that ran it.
+/// Home card shown while UniMate thinks: each step from words to plan, named by the engine that ran it.
 /// Stages come from `AppModel.pipelineStages` and appear as `revealedStageCount` grows.
-struct PipelineRevealView: View {
+struct UniMateelineRevealView: View {
     @Environment(AppModel.self) private var model
 
     /// Placeholder rows before the server answers, in pipeline order.
@@ -15,7 +15,7 @@ struct PipelineRevealView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("PIP IS WORKING")
                 .font(.caption2.weight(.bold)).tracking(1.4)
-                .foregroundStyle(PipDesign.secondary)
+                .foregroundStyle(UniMateDesign.secondary)
                 .accessibilityAddTraits(.isHeader)
 
             VStack(alignment: .leading, spacing: 16) {
@@ -36,12 +36,12 @@ struct PipelineRevealView: View {
                 }
             }
         }
-        .pipCard()
+        .uniMateCard()
         .accessibilityElement(children: .contain)
     }
 
     /// Unrevealed rows keep the present-tense wording so the past-tense label isn't spoiled.
-    private static func pendingLabel(for stage: PipelineStage) -> String {
+    private static func pendingLabel(for stage: UniMateelineStage) -> String {
         switch stage.id {
         case "transcribe": return pendingLabels[0]
         case "extract": return pendingLabels[1]
@@ -63,16 +63,16 @@ private struct PendingStageRow: View {
         HStack(alignment: .center, spacing: 12) {
             Group {
                 if active {
-                    ProgressView().controlSize(.small).tint(PipDesign.accent)
+                    ProgressView().controlSize(.small).tint(UniMateDesign.accent)
                 } else {
-                    Circle().strokeBorder(PipDesign.line, lineWidth: 1.5)
+                    Circle().strokeBorder(UniMateDesign.line, lineWidth: 1.5)
                 }
             }
             .frame(width: 24, height: 24)
 
             Text(label)
                 .font(.subheadline.weight(active ? .semibold : .regular))
-                .foregroundStyle(active ? PipDesign.ink : PipDesign.secondary)
+                .foregroundStyle(active ? UniMateDesign.ink : UniMateDesign.secondary)
                 .opacity(active ? 1 : 0.6)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -82,7 +82,7 @@ private struct PendingStageRow: View {
 }
 
 private struct RevealedStageRow: View {
-    let stage: PipelineStage
+    let stage: UniMateelineStage
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -97,7 +97,7 @@ private struct RevealedStageRow: View {
                     if let ms = stage.ms {
                         Text(StageDuration.short(ms))
                             .font(.caption.weight(.medium)).monospacedDigit()
-                            .foregroundStyle(PipDesign.secondary)
+                            .foregroundStyle(UniMateDesign.secondary)
                     }
                 }
                 if !stage.engine.isEmpty {
@@ -105,11 +105,11 @@ private struct RevealedStageRow: View {
                 }
                 if !stage.detail.isEmpty {
                     Text(stage.detail)
-                        .font(.footnote).foregroundStyle(PipDesign.secondary)
+                        .font(.footnote).foregroundStyle(UniMateDesign.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if !stage.chips.isEmpty {
-                    PipelineChipFlow(chips: stage.chips)
+                    UniMateelineChipFlow(chips: stage.chips)
                         .padding(.top, 4)
                 }
             }
@@ -151,9 +151,9 @@ private struct StageStatusIcon: View {
 
     private var tint: Color {
         switch status {
-        case "ok": return PipDesign.positive
-        case "fallback": return PipDesign.warning
-        default: return PipDesign.secondary
+        case "ok": return UniMateDesign.positive
+        case "fallback": return UniMateDesign.warning
+        default: return UniMateDesign.secondary
         }
     }
 
@@ -193,10 +193,10 @@ private struct EnginePill: View {
                 .fixedSize(horizontal: false, vertical: wraps)
         }
         .font(.caption2.weight(.semibold))
-        .foregroundStyle(PipDesign.ink)
+        .foregroundStyle(UniMateDesign.ink)
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(PipDesign.mist, in: RoundedRectangle(cornerRadius: wraps ? 10 : 999, style: .continuous))
+        .background(UniMateDesign.mist, in: RoundedRectangle(cornerRadius: wraps ? 10 : 999, style: .continuous))
     }
 }
 
@@ -215,15 +215,15 @@ private enum StageDuration {
 // MARK: - Chips
 
 /// What the extract stage pulled out, popping in one after another.
-private struct PipelineChipFlow: View {
-    let chips: [PipelineChip]
+private struct UniMateelineChipFlow: View {
+    let chips: [UniMateelineChip]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared = false
 
     var body: some View {
-        PipFlowLayout(spacing: 6, lineSpacing: 6) {
+        UniMateFlowLayout(spacing: 6, lineSpacing: 6) {
             ForEach(Array(chips.enumerated()), id: \.offset) { index, chip in
-                PipelineChipView(chip: chip)
+                UniMateelineChipView(chip: chip)
                     .scaleEffect(appeared || reduceMotion ? 1 : 0.6)
                     .opacity(appeared ? 1 : 0)
                     .animation(chipAnimation(at: index), value: appeared)
@@ -239,8 +239,8 @@ private struct PipelineChipFlow: View {
     }
 }
 
-private struct PipelineChipView: View {
-    let chip: PipelineChip
+private struct UniMateelineChipView: View {
+    let chip: UniMateelineChip
 
     private var symbol: String {
         switch chip.kind {
@@ -263,29 +263,29 @@ private struct PipelineChipView: View {
         HStack(alignment: wraps ? .firstTextBaseline : .center, spacing: 5) {
             Image(systemName: symbol)
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(PipDesign.accent)
+                .foregroundStyle(UniMateDesign.accent)
             Text(chip.label)
                 .font(.caption.weight(.medium))
-                .foregroundStyle(PipDesign.ink)
+                .foregroundStyle(UniMateDesign.ink)
                 .lineLimit(wraps ? nil : 1)
                 .fixedSize(horizontal: false, vertical: wraps)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
-        .background(PipDesign.surface, in: shape)
-        .overlay { shape.strokeBorder(PipDesign.line) }
+        .background(UniMateDesign.surface, in: shape)
+        .overlay { shape.strokeBorder(UniMateDesign.line) }
     }
 }
 
 // MARK: - Previews
 
-private enum PipelineRevealPreview {
+private enum UniMateelineRevealPreview {
     /// The demo sentence's stages, `revealed` of them on screen. Without stages: still waiting on the server.
     @MainActor
     static func model(revealed: Int, withStages: Bool = true) -> AppModel {
         let model = AppModel.preview(withPlan: withStages)
-        model.pipState = .thinking
-        model.isRevealingPipeline = true
+        model.uniMateState = .thinking
+        model.isRevealingUniMateeline = true
         model.pipelineStages = withStages ? SampleData.pipeline : []
         model.revealedStageCount = withStages ? min(revealed, SampleData.pipeline.count) : 0
         return model
@@ -294,27 +294,27 @@ private enum PipelineRevealPreview {
 
 #Preview("Revealing") {
     ScrollView {
-        PipelineRevealView()
-            .padding(PipDesign.page)
+        UniMateelineRevealView()
+            .padding(UniMateDesign.page)
     }
-    .pipScreen()
-    .environment(PipelineRevealPreview.model(revealed: 2))
+    .uniMateScreen()
+    .environment(UniMateelineRevealPreview.model(revealed: 2))
 }
 
 #Preview("All stages") {
     ScrollView {
-        PipelineRevealView()
-            .padding(PipDesign.page)
+        UniMateelineRevealView()
+            .padding(UniMateDesign.page)
     }
-    .pipScreen()
-    .environment(PipelineRevealPreview.model(revealed: 4))
+    .uniMateScreen()
+    .environment(UniMateelineRevealPreview.model(revealed: 4))
 }
 
 #Preview("Waiting") {
     ScrollView {
-        PipelineRevealView()
-            .padding(PipDesign.page)
+        UniMateelineRevealView()
+            .padding(UniMateDesign.page)
     }
-    .pipScreen()
-    .environment(PipelineRevealPreview.model(revealed: 0, withStages: false))
+    .uniMateScreen()
+    .environment(UniMateelineRevealPreview.model(revealed: 0, withStages: false))
 }

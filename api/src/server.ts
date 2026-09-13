@@ -5,7 +5,7 @@ import { errorMessage, log } from './log';
 import { MemoryBackend } from './backends/memory';
 import { LiveBackend } from './backends/live';
 import { preloadSnowflakeSdk } from './snowflake/client';
-import { PipService } from './service';
+import { UniMateService } from './service';
 import { createApp } from './app';
 import { extractorFromConfig } from './llm/extractor';
 
@@ -34,15 +34,15 @@ async function main(): Promise<void> {
     log.info(`snowflake-sdk loaded in ${ms} ms`);
   }
   const live = config.mode === 'live' ? new LiveBackend(config, clock, undefined, { extractor }) : undefined;
-  const service = new PipService(config.mode, memory, live);
+  const service = new UniMateService(config.mode, memory, live);
   const app = createApp(service);
 
   const server = app.listen(config.port, '0.0.0.0', () => {
     const clockNote = clock.pinned ? `clock pinned at ${clock.pinnedTime ?? ''}` : 'real clock';
     log.info(`mode=${config.mode} (${clockNote}), timezone=${config.timezone}`);
     const addresses = lanAddresses();
-    if (addresses.length === 0) console.log(`Pip API ${config.mode} on http://localhost:${config.port}`);
-    for (const ip of addresses) console.log(`Pip API ${config.mode} on http://${ip}:${config.port}`);
+    if (addresses.length === 0) console.log(`UniMate API ${config.mode} on http://localhost:${config.port}`);
+    for (const ip of addresses) console.log(`UniMate API ${config.mode} on http://${ip}:${config.port}`);
   });
   server.on('error', (err) => {
     log.error(`server error: ${errorMessage(err)}`);

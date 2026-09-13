@@ -4,7 +4,7 @@ import Foundation
 // .convertToSnakeCase, so every property is the camelCase form of its JSON key.
 // Datetimes stay as String (IsoDateTime / IsoDate / "HH:MM"); see DateFormatting.
 
-enum PipCoding {
+enum UniMateCoding {
     static func makeDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -20,7 +20,7 @@ enum PipCoding {
 
 // MARK: - Rows
 
-struct PipTask: Codable, Hashable, Identifiable {
+struct UniMateTask: Codable, Hashable, Identifiable {
     let taskId: String
     let studentId: String
     let captureId: String?
@@ -270,17 +270,17 @@ struct ClaudeStatus: Codable, Hashable {
     let model: String?
 }
 
-// MARK: - Pipeline
+// MARK: - UniMateeline
 
 /// Something the extract stage pulled out of the words.
-struct PipelineChip: Codable, Hashable {
+struct UniMateelineChip: Codable, Hashable {
     /// "task" | "fixed_block" | "cash" | "time_window" | "travel" | "question"
     let kind: String
     let label: String
 }
 
 /// One step from words to plan, named by the engine that actually ran it.
-struct PipelineStage: Codable, Hashable, Identifiable {
+struct UniMateelineStage: Codable, Hashable, Identifiable {
     /// "transcribe" | "extract" | "rank" | "wording"
     let id: String
     let label: String
@@ -290,7 +290,7 @@ struct PipelineStage: Codable, Hashable, Identifiable {
     let status: String
     let ms: Int?
     /// empty except on the extract stage
-    let chips: [PipelineChip]
+    let chips: [UniMateelineChip]
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -303,7 +303,7 @@ struct PipelineStage: Codable, Hashable, Identifiable {
     }
 }
 
-extension PipelineStage {
+extension UniMateelineStage {
     // Lenient: the pipeline is explanation only, so a surprising stage never breaks a plan.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -313,7 +313,7 @@ extension PipelineStage {
         detail = (try? container.decode(String.self, forKey: .detail)) ?? ""
         status = (try? container.decode(String.self, forKey: .status)) ?? "ok"
         ms = (try? container.decodeIfPresent(Double.self, forKey: .ms)).map { Int($0.rounded()) }
-        chips = (try? container.decodeIfPresent([PipelineChip].self, forKey: .chips)) ?? []
+        chips = (try? container.decodeIfPresent([UniMateelineChip].self, forKey: .chips)) ?? []
     }
 }
 
@@ -341,12 +341,12 @@ struct CaptureResponse: Codable, Hashable {
     let capture: Capture
     let transcript: String
     let needsText: Bool
-    let tasks: [PipTask]
+    let tasks: [UniMateTask]
     let plan: Plan
     let diff: PlanDiff?
     let previousPlanId: String?
     /// absent in older servers and fixtures
-    var pipeline: [PipelineStage]?
+    var pipeline: [UniMateelineStage]?
 }
 
 struct RerankResponse: Codable, Hashable {
@@ -355,7 +355,7 @@ struct RerankResponse: Codable, Hashable {
     let previousPlanId: String
     let diff: PlanDiff
     /// absent in older servers and fixtures
-    var pipeline: [PipelineStage]?
+    var pipeline: [UniMateelineStage]?
 }
 
 struct TodayTimetableResponse: Codable, Hashable {
@@ -382,7 +382,7 @@ struct ProfileResponse: Codable, Hashable {
 struct ActionResponse: Codable, Hashable {
     var source: Source
     let action: Action
-    let task: PipTask?
+    let task: UniMateTask?
 }
 
 struct HistoryResponse: Codable, Hashable {

@@ -3,9 +3,9 @@ import SwiftUI
 import WidgetKit
 
 /// Lock Screen and Dynamic Island UI for a focus session started from the do-now card.
-struct PipFocusLiveActivity: Widget {
+struct UniMateFocusLiveActivity: Widget {
     var body: some WidgetConfiguration {
-        ActivityConfiguration(for: PipFocusAttributes.self) { context in
+        ActivityConfiguration(for: UniMateFocusAttributes.self) { context in
             FocusLockScreenView(attributes: context.attributes, state: context.state, isStale: context.isStale)
                 .activitySystemActionForegroundColor(FocusStyle.tint)
         } dynamicIsland: { context in
@@ -31,7 +31,7 @@ struct PipFocusLiveActivity: Widget {
             } compactLeading: {
                 Image(systemName: "bird.fill")
                     .foregroundStyle(FocusStyle.tint)
-                    .accessibilityLabel("Pip focus")
+                    .accessibilityLabel("UniMate focus")
             } compactTrailing: {
                 FocusCountdown(endsAt: context.state.endsAt, timeUp: timeUp)
                     .font(.caption.weight(.semibold))
@@ -49,8 +49,8 @@ struct PipFocusLiveActivity: Widget {
 // MARK: Lock Screen
 
 private struct FocusLockScreenView: View {
-    let attributes: PipFocusAttributes
-    let state: PipFocusAttributes.ContentState
+    let attributes: UniMateFocusAttributes
+    let state: UniMateFocusAttributes.ContentState
     let isStale: Bool
 
     var body: some View {
@@ -89,15 +89,15 @@ private struct FocusLockScreenView: View {
 
 // MARK: Pieces
 
-/// "Time is up. Open Pip" once the block is over; otherwise "Then: <next>" and the money at stake.
+/// "Time is up. Open UniMate" once the block is over; otherwise "Then: <next>" and the money at stake.
 private struct FocusDetailLine: View {
-    let attributes: PipFocusAttributes
+    let attributes: UniMateFocusAttributes
     let timeUp: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             if timeUp {
-                Text("Time is up. Open Pip")
+                Text("Time is up. Open UniMate")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(FocusStyle.tint)
             }
@@ -155,10 +155,10 @@ private struct FocusMark: View {
 }
 
 private enum FocusStyle {
-    /// Calm periwinkle. Widget targets cannot see PipDesign, so it is defined here.
+    /// Calm periwinkle. Widget targets cannot see UniMateDesign, so it is defined here.
     static let tint = Color(red: 0.43, green: 0.47, blue: 0.86)
 
-    static func isTimeUp(_ state: PipFocusAttributes.ContentState, isStale: Bool) -> Bool {
+    static func isTimeUp(_ state: UniMateFocusAttributes.ContentState, isStale: Bool) -> Bool {
         state.phase == "overtime" || isStale || state.endsAt <= Date()
     }
 

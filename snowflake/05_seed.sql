@@ -1,5 +1,5 @@
 -- =============================================================================
--- Pip / Snowflake layer  --  05_seed.sql
+-- UniMate / Snowflake layer  --  05_seed.sql
 -- Idempotent demo baseline (CONTRACT section 5). Re-run any time to reset the demo.
 --
 -- FIRST set the session time zone to the laptop's zone so CURRENT_DATE and
@@ -129,14 +129,14 @@ USING (
          'Generic user' AS assumption_changed,
          'Voice-first ranker with decay curves, with Snowflake as the brain' AS response,
          'None' AS cut,
-         'Problem 7 is prioritization, so Pip turns a spoken, overloaded day into one ranked next action with Snowflake Cortex as the brain.' AS sentence
+         'Problem 7 is prioritization, so UniMate turns a spoken, overloaded day into one ranked next action with Snowflake Cortex as the brain.' AS sentence
   UNION ALL
   SELECT 'pivot-2', 2,
          'User is a first-time independent university student',
          'Generic urgency → practical cost of delay against classes, money, and basic needs',
          'Timetable, budget window, free-window math, basic-needs guard; Today Plan replaces the score',
          'Generic corpus comparison',
-         'We learned our user is a first-time independent student, so Pip now plans around classes, money, and practical life errands — not generic task urgency.'
+         'We learned our user is a first-time independent student, so UniMate now plans around classes, money, and practical life errands — not generic task urgency.'
 ) s
 ON t.pivot_number = s.pivot_number
 WHEN MATCHED THEN UPDATE SET

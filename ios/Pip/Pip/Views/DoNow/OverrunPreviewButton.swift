@@ -7,7 +7,7 @@ struct OverrunPreviewButton: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let item: PlanItem
 
-    /// A task in the current plan with free time left. Previews need the Pip server, so hidden offline.
+    /// A task in the current plan with free time left. Previews need the UniMate server, so hidden offline.
     private var isAvailable: Bool {
         guard item.kind == .task, !model.isOffline, let plan = model.currentPlan else { return false }
         return plan.reasoning.effectiveMinutes > 0 && plan.allItems.contains { $0.itemId == item.itemId }
@@ -28,13 +28,13 @@ struct OverrunPreviewButton: View {
                         if model.isOverrunPreviewLoading {
                             ProgressView()
                                 .controlSize(.small)
-                                .tint(PipDesign.accent)
+                                .tint(UniMateDesign.accent)
                         }
                         Text("What if this takes 10 min longer?")
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .font(.footnote.weight(.medium))
-                    .foregroundStyle(PipDesign.accent)
+                    .foregroundStyle(UniMateDesign.accent)
                     .frame(minHeight: 44)
                     .contentShape(Rectangle())
                 }
@@ -63,7 +63,7 @@ private struct OverrunPreviewResultCard: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Image(systemName: "clock.badge.exclamationmark")
-                    .foregroundStyle(PipDesign.accent)
+                    .foregroundStyle(UniMateDesign.accent)
                 Text(preview.headline)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -75,12 +75,12 @@ private struct OverrunPreviewResultCard: View {
             }
             Text("Preview only · your plan is unchanged")
                 .font(.caption)
-                .foregroundStyle(PipDesign.secondary)
+                .foregroundStyle(UniMateDesign.secondary)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(PipDesign.surface, in: RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous).strokeBorder(PipDesign.accent.opacity(0.3)) }
+        .background(UniMateDesign.surface, in: RoundedRectangle(cornerRadius: UniMateDesign.radiusSmall, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: UniMateDesign.radiusSmall, style: .continuous).strokeBorder(UniMateDesign.accent.opacity(0.3)) }
         .accessibilityElement(children: .combine)
     }
 }
@@ -110,14 +110,14 @@ private struct OverrunPreviewButtonPreview: View {
         if let plan = SampleData.plan, let item = plan.doNow {
             VStack(alignment: .leading, spacing: 12) {
                 Text(item.title)
-                    .font(PipDesign.heading)
+                    .font(UniMateDesign.heading)
                 DoNowStakesStrip(item: item, planNow: plan.reasoning.now)
                 OverrunPreviewButton(item: item)
             }
-            .pipCard(emphasized: true)
-            .padding(PipDesign.page)
+            .uniMateCard(emphasized: true)
+            .padding(UniMateDesign.page)
             .frame(maxHeight: .infinity, alignment: .top)
-            .pipScreen()
+            .uniMateScreen()
         } else {
             Text("No sample plan")
         }

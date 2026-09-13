@@ -44,16 +44,16 @@ final class ServiceRouter {
         return nil
     }
 
-    func run<T>(_ operation: (any PipService) async throws -> T) async throws -> T {
+    func run<T>(_ operation: (any UniMateService) async throws -> T) async throws -> T {
         if !Config.isDemoMode {
-            guard let remote else { throw PipError.badURL }
+            guard let remote else { throw UniMateError.badURL }
             do {
                 let result = try await operation(remote)
                 isOffline = false
                 return result
             } catch is URLError {
                 isOffline = true
-                throw PipError.serverUnavailable
+                throw UniMateError.serverUnavailable
             }
         }
         if !isOffline, let remote {

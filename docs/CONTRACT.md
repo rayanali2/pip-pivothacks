@@ -1,4 +1,4 @@
-# Pip contract (API ⇄ Snowflake ⇄ iOS)
+# UniMate contract (API ⇄ Snowflake ⇄ iOS)
 
 `api/src/types.ts` holds the exact JSON types. This document covers what those types mean, the endpoints, the ranker, the demo data and the Snowflake procedure interfaces. Every part of the repo must agree with it.
 
