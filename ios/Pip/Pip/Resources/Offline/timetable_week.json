@@ -1,0 +1,54 @@
+{
+  "source": "fallback",
+  "student_id": "demo",
+  "blocks": [
+    {
+      "student_id": "demo",
+      "day_of_week": 1,
+      "title": "CHEM 110 Lecture",
+      "starts_at": "10:00",
+      "ends_at": "11:20",
+      "location": "Science Hall 120"
+    },
+    {
+      "student_id": "demo",
+      "day_of_week": 2,
+      "title": "MATH 151 Calculus",
+      "starts_at": "09:30",
+      "ends_at": "10:50",
+      "location": "Math Building 210"
+    },
+    {
+      "student_id": "demo",
+      "day_of_week": 3,
+      "title": "CHEM 110 Lecture",
+      "starts_at": "10:00",
+      "ends_at": "11:20",
+      "location": "Science Hall 120"
+    },
+    {
+      "student_id": "demo",
+      "day_of_week": 4,
+      "title": "MATH 151 Calculus",
+      "starts_at": "09:30",
+      "ends_at": "10:50",
+      "location": "Math Building 210"
+    },
+    {
+      "student_id": "demo",
+      "day_of_week": 5,
+      "title": "CS 101 Tutorial",
+      "starts_at": "11:30",
+      "ends_at": "12:20",
+      "location": "Tech Hub 3"
+    },
+    {
+      "student_id": "demo",
+      "day_of_week": 7,
+      "title": "CHEM 110 Lab",
+      "starts_at": "14:00",
+      "ends_at": "17:00",
+      "location": "Science Hall 204"
+    }
+  ]
+}

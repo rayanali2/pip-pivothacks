@@ -1,0 +1,12 @@
+{
+  "source": "fallback",
+  "profile": {
+    "student_id": "demo",
+    "chronotype": "night_owl",
+    "cooks_own_meals": true,
+    "cash_available": 35,
+    "budget_until": "2026-09-18",
+    "procrastinates_on": "assignment",
+    "updated_at": "2026-09-10T13:13:00-04:00"
+  }
+}

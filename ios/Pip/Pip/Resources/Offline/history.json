@@ -1,0 +1,70 @@
+{
+  "source": "fallback",
+  "student_id": "demo",
+  "entries": [
+    {
+      "plan_id": "plan-21242141b982",
+      "capture_id": "capture-8bdcd9dfa5af",
+      "created_at": "2026-09-13T11:15:29-04:00",
+      "model": "deterministic-ranker-v1",
+      "trigger": "rerank",
+      "transcript": "I only have 25 minutes",
+      "context": {
+        "available_minutes": 25,
+        "cash_available": null,
+        "question": "I only have 25 minutes"
+      },
+      "do_now_task_id": "demo-assignment",
+      "do_now_title": "Outline CS 101 assignment",
+      "previous_do_now_title": "Return headphones",
+      "changed": "do now: Return headphones → Outline CS 101 assignment",
+      "actions": [
+        {
+          "action_id": "action-bcf80a2f2d0f",
+          "student_id": "demo",
+          "plan_id": "plan-21242141b982",
+          "task_id": "demo-assignment",
+          "kind": "start_now",
+          "created_at": "2026-09-13T11:15:29-04:00",
+          "task_title": "Outline CS 101 assignment"
+        }
+      ]
+    },
+    {
+      "plan_id": "plan-ff78a90bbdf3",
+      "capture_id": "capture-8bdcd9dfa5af",
+      "created_at": "2026-09-13T11:15:29-04:00",
+      "model": "deterministic-ranker-v1",
+      "trigger": "capture",
+      "transcript": "I have a 2 PM lab. I need to return headphones by 5 PM or lose the refund. My assignment is due tomorrow. I need groceries, and I have $35 until Friday. What should I do?",
+      "context": {
+        "available_minutes": null,
+        "cash_available": null,
+        "question": "What should I do?"
+      },
+      "do_now_task_id": "demo-return-headphones",
+      "do_now_title": "Return headphones",
+      "previous_do_now_title": "Return headphones",
+      "changed": "same do now",
+      "actions": []
+    },
+    {
+      "plan_id": "plan-2a79d16fb114",
+      "capture_id": "demo-capture-seed",
+      "created_at": "2026-09-13T11:15:28-04:00",
+      "model": "deterministic-ranker-v1",
+      "trigger": "seed",
+      "transcript": null,
+      "context": {
+        "available_minutes": null,
+        "cash_available": null,
+        "question": null
+      },
+      "do_now_task_id": "demo-return-headphones",
+      "do_now_title": "Return headphones",
+      "previous_do_now_title": null,
+      "changed": "first plan",
+      "actions": []
+    }
+  ]
+}

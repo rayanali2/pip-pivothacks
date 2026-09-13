@@ -1,0 +1,833 @@
+{
+  "source": "fallback",
+  "capture": {
+    "capture_id": "capture-8bdcd9dfa5af",
+    "student_id": "demo",
+    "audio_stage_path": null,
+    "transcript": "I have a 2 PM lab. I need to return headphones by 5 PM or lose the refund. My assignment is due tomorrow. I need groceries, and I have $35 until Friday. What should I do?",
+    "source": "voice",
+    "created_at": "2026-09-13T11:15:29-04:00"
+  },
+  "transcript": "I have a 2 PM lab. I need to return headphones by 5 PM or lose the refund. My assignment is due tomorrow. I need groceries, and I have $35 until Friday. What should I do?",
+  "needs_text": false,
+  "tasks": [
+    {
+      "task_id": "demo-return-headphones",
+      "student_id": "demo",
+      "capture_id": "demo-capture-seed",
+      "raw_text": "I need to return headphones by 5 PM or lose the refund",
+      "normalized_text": "Return headphones for refund",
+      "category": "errand",
+      "due_at": "2026-09-13T17:00:00-04:00",
+      "money_at_risk": 79,
+      "est_minutes": 35,
+      "status": "open",
+      "defer_count": 0,
+      "created_at": "2026-09-12T17:13:00-04:00"
+    },
+    {
+      "task_id": "demo-assignment",
+      "student_id": "demo",
+      "capture_id": "demo-capture-seed",
+      "raw_text": "My assignment is due tomorrow",
+      "normalized_text": "Finish CS 101 assignment",
+      "category": "assignment",
+      "due_at": "2026-09-14T23:59:00-04:00",
+      "money_at_risk": null,
+      "est_minutes": 180,
+      "status": "open",
+      "defer_count": 1,
+      "created_at": "2026-09-10T13:13:00-04:00"
+    },
+    {
+      "task_id": "demo-groceries",
+      "student_id": "demo",
+      "capture_id": "demo-capture-seed",
+      "raw_text": "I need groceries",
+      "normalized_text": "Buy groceries within budget",
+      "category": "errand",
+      "due_at": null,
+      "money_at_risk": null,
+      "est_minutes": 40,
+      "status": "open",
+      "defer_count": 1,
+      "created_at": "2026-09-12T07:13:00-04:00"
+    },
+    {
+      "task_id": "demo-sleep",
+      "student_id": "demo",
+      "capture_id": "demo-capture-seed",
+      "raw_text": "I keep skipping sleep",
+      "normalized_text": "Get a full night's sleep",
+      "category": "rest",
+      "due_at": null,
+      "money_at_risk": null,
+      "est_minutes": 480,
+      "status": "open",
+      "defer_count": 2,
+      "created_at": "2026-09-11T21:13:00-04:00"
+    },
+    {
+      "task_id": "demo-laundry",
+      "student_id": "demo",
+      "capture_id": "demo-capture-seed",
+      "raw_text": "Do laundry",
+      "normalized_text": "Do laundry",
+      "category": "errand",
+      "due_at": null,
+      "money_at_risk": null,
+      "est_minutes": 90,
+      "status": "open",
+      "defer_count": 0,
+      "created_at": "2026-09-12T13:13:00-04:00"
+    },
+    {
+      "task_id": "demo-club-rsvp",
+      "student_id": "demo",
+      "capture_id": "demo-capture-seed",
+      "raw_text": "RSVP to the Outdoors Club hike",
+      "normalized_text": "RSVP to Outdoors Club hike",
+      "category": "club",
+      "due_at": "2026-09-18T17:00:00-04:00",
+      "money_at_risk": null,
+      "est_minutes": 5,
+      "status": "open",
+      "defer_count": 1,
+      "created_at": "2026-09-11T13:13:00-04:00"
+    }
+  ],
+  "plan": {
+    "plan_id": "plan-ff78a90bbdf3",
+    "student_id": "demo",
+    "capture_id": "capture-8bdcd9dfa5af",
+    "created_at": "2026-09-13T11:15:29-04:00",
+    "model": "deterministic-ranker-v1",
+    "do_now": {
+      "item_id": "demo-return-headphones",
+      "kind": "task",
+      "task_id": "demo-return-headphones",
+      "title": "Return headphones",
+      "action": "Grab the headphones and receipt and head to the store now (~35 min)",
+      "category": "errand",
+      "why": "The $79 refund is gone at 5:00 PM and you're in CHEM 110 Lab from 2:00 to 5:00 PM, so the 35-minute return has to happen in the 47 minutes you have now.",
+      "starts_at": "2026-09-13T13:13:00-04:00",
+      "ends_at": "2026-09-13T13:48:00-04:00",
+      "est_minutes": 35,
+      "due_at": "2026-09-13T17:00:00-04:00",
+      "money_at_risk": 79,
+      "location": null,
+      "flag": null,
+      "rules_fired": [
+        "irreversible_loss",
+        "fixed_block_collision",
+        "fits_window"
+      ],
+      "evidence": [
+        {
+          "rule": "irreversible_loss",
+          "label": "Irreversible deadline or money loss",
+          "fired": true,
+          "detail": "Refund of $79 is lost at 5:00 PM (3 h 47 min away)."
+        },
+        {
+          "rule": "fixed_block_collision",
+          "label": "Collides with a fixed class/lab block",
+          "fired": true,
+          "detail": "Due at 5:00 PM, before CHEM 110 Lab ends at 5:00 PM, so the 47 min you have before 2:00 PM are the last chance."
+        },
+        {
+          "rule": "basic_needs",
+          "label": "Affects basic needs today",
+          "fired": false,
+          "detail": "It's an errand, not food, sleep or health, so today's basics don't hinge on it."
+        },
+        {
+          "rule": "fits_window",
+          "label": "First step fits the free window",
+          "fired": true,
+          "detail": "First step is 35 min and you have 47 min free, 12 to spare."
+        },
+        {
+          "rule": "academic_deadline",
+          "label": "Near academic deadline",
+          "fired": false,
+          "detail": "It isn't coursework or a shift, so the 48-hour academic deadline check doesn't apply."
+        }
+      ],
+      "curve": [
+        {
+          "hours": 0,
+          "cost": 0.1
+        },
+        {
+          "hours": 1,
+          "cost": 0.2057
+        },
+        {
+          "hours": 2,
+          "cost": 0.3115
+        },
+        {
+          "hours": 3,
+          "cost": 0.4172
+        },
+        {
+          "hours": 4,
+          "cost": 1
+        },
+        {
+          "hours": 6,
+          "cost": 1
+        },
+        {
+          "hours": 8,
+          "cost": 1
+        },
+        {
+          "hours": 12,
+          "cost": 1
+        },
+        {
+          "hours": 18,
+          "cost": 1
+        },
+        {
+          "hours": 24,
+          "cost": 1
+        },
+        {
+          "hours": 36,
+          "cost": 1
+        },
+        {
+          "hours": 48,
+          "cost": 1
+        }
+      ],
+      "curve_kind": "cliff"
+    },
+    "next": {
+      "item_id": "block:7:14:00",
+      "kind": "fixed_block",
+      "task_id": null,
+      "title": "CHEM 110 Lab",
+      "action": "Be at Science Hall 204 by 2:00 PM",
+      "category": "class",
+      "why": "The return leaves you 12 spare minutes to get to Science Hall 204 before Lab runs from 2:00 to 5:00 PM.",
+      "starts_at": "2026-09-13T14:00:00-04:00",
+      "ends_at": "2026-09-13T17:00:00-04:00",
+      "est_minutes": 180,
+      "due_at": null,
+      "money_at_risk": null,
+      "location": "Science Hall 204",
+      "flag": null,
+      "rules_fired": [],
+      "evidence": [],
+      "curve": [],
+      "curve_kind": null
+    },
+    "today": [
+      {
+        "item_id": "demo-assignment",
+        "kind": "task",
+        "task_id": "demo-assignment",
+        "title": "CS 101 assignment",
+        "action": "Work on the CS 101 assignment from 5:15 to 6:45 PM",
+        "category": "assignment",
+        "why": "It's due tomorrow at 11:59 PM and needs about 3 hours, so the first 90 minutes go right after Lab.",
+        "starts_at": "2026-09-13T17:15:00-04:00",
+        "ends_at": "2026-09-13T18:45:00-04:00",
+        "est_minutes": 180,
+        "due_at": "2026-09-14T23:59:00-04:00",
+        "money_at_risk": null,
+        "location": null,
+        "flag": null,
+        "rules_fired": [
+          "fits_window",
+          "academic_deadline"
+        ],
+        "evidence": [
+          {
+            "rule": "irreversible_loss",
+            "label": "Irreversible deadline or money loss",
+            "fired": false,
+            "detail": "Due tomorrow at 11:59 PM (34 h 46 min away), so nothing is lost for good in the next 12 hours."
+          },
+          {
+            "rule": "fixed_block_collision",
+            "label": "Collides with a fixed class/lab block",
+            "fired": false,
+            "detail": "Due tomorrow at 11:59 PM, after CHEM 110 Lab ends at 5:00 PM, so there's still time after it."
+          },
+          {
+            "rule": "basic_needs",
+            "label": "Affects basic needs today",
+            "fired": false,
+            "detail": "It's coursework, not food, sleep or health, so today's basics don't hinge on it."
+          },
+          {
+            "rule": "fits_window",
+            "label": "First step fits the free window",
+            "fired": true,
+            "detail": "First step is 20 min and you have 47 min free, 27 to spare."
+          },
+          {
+            "rule": "academic_deadline",
+            "label": "Near academic deadline",
+            "fired": true,
+            "detail": "Due tomorrow at 11:59 PM, 34 h 46 min away, inside the 48-hour window."
+          }
+        ],
+        "curve": [
+          {
+            "hours": 0,
+            "cost": 0.1
+          },
+          {
+            "hours": 1,
+            "cost": 0.1115
+          },
+          {
+            "hours": 2,
+            "cost": 0.123
+          },
+          {
+            "hours": 3,
+            "cost": 0.1345
+          },
+          {
+            "hours": 4,
+            "cost": 0.146
+          },
+          {
+            "hours": 6,
+            "cost": 0.169
+          },
+          {
+            "hours": 8,
+            "cost": 0.192
+          },
+          {
+            "hours": 12,
+            "cost": 0.2381
+          },
+          {
+            "hours": 18,
+            "cost": 0.3071
+          },
+          {
+            "hours": 24,
+            "cost": 0.3761
+          },
+          {
+            "hours": 36,
+            "cost": 1
+          },
+          {
+            "hours": 48,
+            "cost": 1
+          }
+        ],
+        "curve_kind": "cliff"
+      },
+      {
+        "item_id": "demo-groceries",
+        "kind": "task",
+        "task_id": "demo-groceries",
+        "title": "Groceries",
+        "action": "Shop for groceries at 7:00 PM with a $21 cap",
+        "category": "errand",
+        "why": "A $21 cap leaves $14 of your $35 for the 5 days until Friday, about $2.80 a day.",
+        "starts_at": "2026-09-13T19:00:00-04:00",
+        "ends_at": "2026-09-13T19:40:00-04:00",
+        "est_minutes": 40,
+        "due_at": null,
+        "money_at_risk": null,
+        "location": null,
+        "flag": null,
+        "rules_fired": [
+          "basic_needs",
+          "fits_window"
+        ],
+        "evidence": [
+          {
+            "rule": "irreversible_loss",
+            "label": "Irreversible deadline or money loss",
+            "fired": false,
+            "detail": "No deadline and $0 at risk, so nothing is lost for good by waiting."
+          },
+          {
+            "rule": "fixed_block_collision",
+            "label": "Collides with a fixed class/lab block",
+            "fired": false,
+            "detail": "No deadline, so CHEM 110 Lab (2:00 to 5:00 PM) doesn't cut it off."
+          },
+          {
+            "rule": "basic_needs",
+            "label": "Affects basic needs today",
+            "fired": true,
+            "detail": "Food for the week: $35 has to last 5 days until Friday."
+          },
+          {
+            "rule": "fits_window",
+            "label": "First step fits the free window",
+            "fired": true,
+            "detail": "First step is 40 min and you have 47 min free, 7 to spare."
+          },
+          {
+            "rule": "academic_deadline",
+            "label": "Near academic deadline",
+            "fired": false,
+            "detail": "It isn't coursework or a shift, so the 48-hour academic deadline check doesn't apply."
+          }
+        ],
+        "curve": [
+          {
+            "hours": 0,
+            "cost": 0.1
+          },
+          {
+            "hours": 1,
+            "cost": 0.1069
+          },
+          {
+            "hours": 2,
+            "cost": 0.1139
+          },
+          {
+            "hours": 3,
+            "cost": 0.1208
+          },
+          {
+            "hours": 4,
+            "cost": 0.1278
+          },
+          {
+            "hours": 6,
+            "cost": 0.1417
+          },
+          {
+            "hours": 8,
+            "cost": 0.1556
+          },
+          {
+            "hours": 12,
+            "cost": 0.1833
+          },
+          {
+            "hours": 18,
+            "cost": 0.225
+          },
+          {
+            "hours": 24,
+            "cost": 0.2667
+          },
+          {
+            "hours": 36,
+            "cost": 0.35
+          },
+          {
+            "hours": 48,
+            "cost": 0.4333
+          }
+        ],
+        "curve_kind": "linear"
+      },
+      {
+        "item_id": "demo-sleep",
+        "kind": "task",
+        "task_id": "demo-sleep",
+        "title": "Sleep",
+        "action": "Be in bed by 11:30 PM",
+        "category": "rest",
+        "why": "You've pushed sleep back twice in the last 40 hours, so 11:30 PM is held for a full night before the assignment is due tomorrow.",
+        "starts_at": "2026-09-13T23:30:00-04:00",
+        "ends_at": null,
+        "est_minutes": 480,
+        "due_at": null,
+        "money_at_risk": null,
+        "location": null,
+        "flag": "balance_guard",
+        "rules_fired": [
+          "basic_needs"
+        ],
+        "evidence": [
+          {
+            "rule": "irreversible_loss",
+            "label": "Irreversible deadline or money loss",
+            "fired": false,
+            "detail": "No deadline and $0 at risk, so nothing is lost for good by waiting."
+          },
+          {
+            "rule": "fixed_block_collision",
+            "label": "Collides with a fixed class/lab block",
+            "fired": false,
+            "detail": "No deadline, so CHEM 110 Lab (2:00 to 5:00 PM) doesn't cut it off."
+          },
+          {
+            "rule": "basic_needs",
+            "label": "Affects basic needs today",
+            "fired": true,
+            "detail": "Sleep keeps you functioning, and it's been put off twice in 40 hours."
+          },
+          {
+            "rule": "fits_window",
+            "label": "First step fits the free window",
+            "fired": false,
+            "detail": "First step is 480 min but you only have 47 min free, 433 short."
+          },
+          {
+            "rule": "academic_deadline",
+            "label": "Near academic deadline",
+            "fired": false,
+            "detail": "It isn't coursework or a shift, so the 48-hour academic deadline check doesn't apply."
+          }
+        ],
+        "curve": [
+          {
+            "hours": 0,
+            "cost": 0.7556
+          },
+          {
+            "hours": 1,
+            "cost": 0.7694
+          },
+          {
+            "hours": 2,
+            "cost": 0.7833
+          },
+          {
+            "hours": 3,
+            "cost": 0.7972
+          },
+          {
+            "hours": 4,
+            "cost": 0.8111
+          },
+          {
+            "hours": 6,
+            "cost": 0.8389
+          },
+          {
+            "hours": 8,
+            "cost": 0.8667
+          },
+          {
+            "hours": 12,
+            "cost": 0.9222
+          },
+          {
+            "hours": 18,
+            "cost": 1
+          },
+          {
+            "hours": 24,
+            "cost": 1
+          },
+          {
+            "hours": 36,
+            "cost": 1
+          },
+          {
+            "hours": 48,
+            "cost": 1
+          }
+        ],
+        "curve_kind": "rising_floor"
+      }
+    ],
+    "can_wait": [
+      {
+        "item_id": "demo-club-rsvp",
+        "kind": "task",
+        "task_id": "demo-club-rsvp",
+        "title": "Outdoors Club RSVP",
+        "action": "Send the 5-minute RSVP before Friday at 5:00 PM",
+        "category": "club",
+        "why": "The RSVP isn't due until Friday at 5:00 PM and nothing is lost by waiting, so it can wait.",
+        "starts_at": null,
+        "ends_at": null,
+        "est_minutes": 5,
+        "due_at": "2026-09-18T17:00:00-04:00",
+        "money_at_risk": null,
+        "location": null,
+        "flag": null,
+        "rules_fired": [
+          "fits_window"
+        ],
+        "evidence": [
+          {
+            "rule": "irreversible_loss",
+            "label": "Irreversible deadline or money loss",
+            "fired": false,
+            "detail": "No money at risk, and the Friday at 5:00 PM deadline (5 days away) isn't a hard loss."
+          },
+          {
+            "rule": "fixed_block_collision",
+            "label": "Collides with a fixed class/lab block",
+            "fired": false,
+            "detail": "Due Friday at 5:00 PM, after CHEM 110 Lab ends at 5:00 PM, so there's still time after it."
+          },
+          {
+            "rule": "basic_needs",
+            "label": "Affects basic needs today",
+            "fired": false,
+            "detail": "It's a club task, not food, sleep or health, so today's basics don't hinge on it."
+          },
+          {
+            "rule": "fits_window",
+            "label": "First step fits the free window",
+            "fired": true,
+            "detail": "First step is 5 min and you have 47 min free, 42 to spare."
+          },
+          {
+            "rule": "academic_deadline",
+            "label": "Near academic deadline",
+            "fired": false,
+            "detail": "It isn't coursework or a shift, so the 48-hour academic deadline check doesn't apply."
+          }
+        ],
+        "curve": [
+          {
+            "hours": 0,
+            "cost": 0.075
+          },
+          {
+            "hours": 1,
+            "cost": 0.0795
+          },
+          {
+            "hours": 2,
+            "cost": 0.0839
+          },
+          {
+            "hours": 3,
+            "cost": 0.0884
+          },
+          {
+            "hours": 4,
+            "cost": 0.0929
+          },
+          {
+            "hours": 6,
+            "cost": 0.1018
+          },
+          {
+            "hours": 8,
+            "cost": 0.1107
+          },
+          {
+            "hours": 12,
+            "cost": 0.1286
+          },
+          {
+            "hours": 18,
+            "cost": 0.1554
+          },
+          {
+            "hours": 24,
+            "cost": 0.1821
+          },
+          {
+            "hours": 36,
+            "cost": 0.2357
+          },
+          {
+            "hours": 48,
+            "cost": 0.2893
+          }
+        ],
+        "curve_kind": "defer_multiplier"
+      },
+      {
+        "item_id": "demo-laundry",
+        "kind": "task",
+        "task_id": "demo-laundry",
+        "title": "Laundry",
+        "action": "Save laundry for a free evening (~90 min)",
+        "category": "errand",
+        "why": "Laundry has no deadline or money riding on it, and its 90 minutes won't fit before Lab, so it can wait.",
+        "starts_at": null,
+        "ends_at": null,
+        "est_minutes": 90,
+        "due_at": null,
+        "money_at_risk": null,
+        "location": null,
+        "flag": null,
+        "rules_fired": [],
+        "evidence": [
+          {
+            "rule": "irreversible_loss",
+            "label": "Irreversible deadline or money loss",
+            "fired": false,
+            "detail": "No deadline and $0 at risk, so nothing is lost for good by waiting."
+          },
+          {
+            "rule": "fixed_block_collision",
+            "label": "Collides with a fixed class/lab block",
+            "fired": false,
+            "detail": "No deadline, so CHEM 110 Lab (2:00 to 5:00 PM) doesn't cut it off."
+          },
+          {
+            "rule": "basic_needs",
+            "label": "Affects basic needs today",
+            "fired": false,
+            "detail": "It's an errand, not food, sleep or health, so today's basics don't hinge on it."
+          },
+          {
+            "rule": "fits_window",
+            "label": "First step fits the free window",
+            "fired": false,
+            "detail": "First step is 90 min but you only have 47 min free, 43 short."
+          },
+          {
+            "rule": "academic_deadline",
+            "label": "Near academic deadline",
+            "fired": false,
+            "detail": "It isn't coursework or a shift, so the 48-hour academic deadline check doesn't apply."
+          }
+        ],
+        "curve": [
+          {
+            "hours": 0,
+            "cost": 0.1
+          },
+          {
+            "hours": 1,
+            "cost": 0.1069
+          },
+          {
+            "hours": 2,
+            "cost": 0.1139
+          },
+          {
+            "hours": 3,
+            "cost": 0.1208
+          },
+          {
+            "hours": 4,
+            "cost": 0.1278
+          },
+          {
+            "hours": 6,
+            "cost": 0.1417
+          },
+          {
+            "hours": 8,
+            "cost": 0.1556
+          },
+          {
+            "hours": 12,
+            "cost": 0.1833
+          },
+          {
+            "hours": 18,
+            "cost": 0.225
+          },
+          {
+            "hours": 24,
+            "cost": 0.2667
+          },
+          {
+            "hours": 36,
+            "cost": 0.35
+          },
+          {
+            "hours": 48,
+            "cost": 0.4333
+          }
+        ],
+        "curve_kind": "linear"
+      }
+    ],
+    "reasoning": {
+      "summary": "You have 47 minutes before CHEM 110 Lab, so return the headphones now and save the $79 refund. Tonight: the assignment at 5:15 PM, groceries under $21 at 7:00 PM, and bed by 11:30 PM.",
+      "now": "2026-09-13T13:13:00-04:00",
+      "free_window": {
+        "starts_at": "2026-09-13T13:13:00-04:00",
+        "ends_at": "2026-09-13T14:00:00-04:00",
+        "minutes": 47,
+        "next_block_title": "CHEM 110 Lab",
+        "next_block_starts_at": "2026-09-13T14:00:00-04:00",
+        "label": "47 min free until CHEM 110 Lab, 2:00 PM"
+      },
+      "effective_minutes": 47,
+      "context": {
+        "available_minutes": null,
+        "cash_available": null,
+        "question": "What should I do?"
+      },
+      "cash_available": 35,
+      "budget_until": "2026-09-18",
+      "days_until_budget": 5,
+      "daily_budget": 7,
+      "warnings": [],
+      "balance_guard": [
+        "You've pushed sleep back twice in the last 40 hours, so bed by 11:30 PM is on today's plan."
+      ],
+      "answer": null,
+      "pre_rank": [
+        {
+          "task_id": "demo-return-headphones",
+          "score": 11010.3083,
+          "rules_fired": [
+            "irreversible_loss",
+            "fixed_block_collision",
+            "fits_window"
+          ],
+          "first_step_minutes": 35,
+          "fits": true
+        },
+        {
+          "task_id": "demo-groceries",
+          "score": 110.1128,
+          "rules_fired": [
+            "basic_needs",
+            "fits_window"
+          ],
+          "first_step_minutes": 40,
+          "fits": true
+        },
+        {
+          "task_id": "demo-sleep",
+          "score": 100.7755,
+          "rules_fired": [
+            "basic_needs"
+          ],
+          "first_step_minutes": 480,
+          "fits": false
+        },
+        {
+          "task_id": "demo-assignment",
+          "score": 11.1218,
+          "rules_fired": [
+            "fits_window",
+            "academic_deadline"
+          ],
+          "first_step_minutes": 20,
+          "fits": true
+        },
+        {
+          "task_id": "demo-club-rsvp",
+          "score": 10.0831,
+          "rules_fired": [
+            "fits_window"
+          ],
+          "first_step_minutes": 5,
+          "fits": true
+        },
+        {
+          "task_id": "demo-laundry",
+          "score": 0.1128,
+          "rules_fired": [],
+          "first_step_minutes": 90,
+          "fits": false
+        }
+      ],
+      "trigger": "capture",
+      "previous_plan_id": null
+    }
+  },
+  "diff": null,
+  "previous_plan_id": null
+}

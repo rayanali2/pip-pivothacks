@@ -1,0 +1,22 @@
+{
+  "source": "fallback",
+  "ok": true,
+  "mode": "mock",
+  "now": "2026-09-13T13:13:00-04:00",
+  "snowflake": {
+    "configured": false,
+    "connected": false,
+    "error": null,
+    "last_warm_ping_at": null
+  },
+  "cortex": {
+    "transcribe": null,
+    "complete": null,
+    "complete_model": null,
+    "embed": null,
+    "verified_at": null,
+    "errors": [
+      "MOCK_MODE"
+    ]
+  }
+}
