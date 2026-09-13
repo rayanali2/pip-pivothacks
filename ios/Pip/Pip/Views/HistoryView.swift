@@ -20,7 +20,7 @@ struct HistoryView: View {
                     }
                     .accessibilityLabel("Show all decisions")
                     Button { actionsOnly.toggle(); mode = .decisions } label: {
-                        PlanTag(text: "\(model.history.reduce(0) { $0 + $1.actions.count }) actions", symbol: actionsOnly ? "checkmark.circle.fill" : "checkmark.circle", tint: PipDesign.positive)
+                        PlanTag(text: "\(model.history.reduce(0) { $0 + $1.actions.count }) actions", symbol: actionsOnly ? "checkmark.circle.fill" : "checkmark.circle", tint: UniMateDesign.positive)
                     }
                     .accessibilityLabel(actionsOnly ? "Show all decisions" : "Show decisions with actions")
                 }
@@ -52,7 +52,7 @@ struct HistoryView: View {
             .listStyle(.insetGrouped)
             .listSectionSpacing(.compact)
             .scrollContentBackground(.hidden)
-            .pipScreen()
+            .uniMateScreen()
             .navigationTitle(mode == .pivots ? "Pivot Log" : "History")
             .toolbar {
                 if Config.isDemoMode {
@@ -61,7 +61,7 @@ struct HistoryView: View {
                             mode = mode == .pivots ? .decisions : .pivots
                         }
                         .font(.subheadline.weight(.semibold))
-                        .tint(PipDesign.accent)
+                        .tint(UniMateDesign.accent)
                     }
                 }
             }
@@ -89,15 +89,15 @@ struct HistoryView: View {
     @ViewBuilder
     private var decisionRows: some View {
         if sortedHistory.isEmpty {
-            PipStatusView(symbol: "clock.arrow.circlepath", title: actionsOnly ? "No actions yet" : "No decisions yet", detail: actionsOnly ? "Tap Start now on a task." : "Talk to Pip to make your first plan.")
+            UniMateStatusView(symbol: "clock.arrow.circlepath", title: actionsOnly ? "No actions yet" : "No decisions yet", detail: actionsOnly ? "Tap Start now on a task." : "Talk to UniMate to make your first plan.")
                 .padding(.vertical, 6)
                 .listRowSeparator(.hidden)
-                .listRowBackground(PipDesign.surface)
+                .listRowBackground(UniMateDesign.surface)
         } else {
             ForEach(sortedHistory) { entry in
                 DecisionRow(entry: entry)
-                    .listRowBackground(PipDesign.surface)
-                    .listRowSeparatorTint(PipDesign.line)
+                    .listRowBackground(UniMateDesign.surface)
+                    .listRowSeparatorTint(UniMateDesign.line)
             }
         }
     }
@@ -105,15 +105,15 @@ struct HistoryView: View {
     @ViewBuilder
     private var contextRows: some View {
         if model.contextHistory.isEmpty {
-            PipStatusView(symbol: "clock", title: "No context checks yet", detail: "Run a time check on Today.")
+            UniMateStatusView(symbol: "clock", title: "No context checks yet", detail: "Run a time check on Today.")
                 .padding(.vertical, 6)
                 .listRowSeparator(.hidden)
-                .listRowBackground(PipDesign.surface)
+                .listRowBackground(UniMateDesign.surface)
         } else {
             ForEach(model.contextHistory) { entry in
                 ContextHistoryRow(entry: entry)
-                    .listRowBackground(PipDesign.surface)
-                    .listRowSeparatorTint(PipDesign.line)
+                    .listRowBackground(UniMateDesign.surface)
+                    .listRowSeparatorTint(UniMateDesign.line)
             }
         }
     }
@@ -121,15 +121,15 @@ struct HistoryView: View {
     @ViewBuilder
     private var pivotRows: some View {
         if model.pivotLog.isEmpty {
-            PipStatusView(symbol: "arrow.triangle.branch", title: "No pivots yet", detail: "Logged pivots show up here.")
+            UniMateStatusView(symbol: "arrow.triangle.branch", title: "No pivots yet", detail: "Logged pivots show up here.")
                 .padding(.vertical, 6)
                 .listRowSeparator(.hidden)
-                .listRowBackground(PipDesign.surface)
+                .listRowBackground(UniMateDesign.surface)
         } else {
             ForEach(sortedPivots) { entry in
                 PivotRow(entry: entry)
-                    .listRowBackground(PipDesign.surface)
-                    .listRowSeparatorTint(PipDesign.line)
+                    .listRowBackground(UniMateDesign.surface)
+                    .listRowSeparatorTint(UniMateDesign.line)
             }
         }
     }
@@ -151,8 +151,8 @@ private struct HistoryTimelineMark: ViewModifier {
             .padding(.leading, 16)
             .overlay(alignment: .leading) {
                 VStack(spacing: 4) {
-                    Circle().fill(PipDesign.accent).frame(width: 7, height: 7)
-                    Rectangle().fill(PipDesign.line).frame(width: 1)
+                    Circle().fill(UniMateDesign.accent).frame(width: 7, height: 7)
+                    Rectangle().fill(UniMateDesign.line).frame(width: 1)
                 }
                 .padding(.top, 20)
                 .padding(.bottom, 12)
@@ -178,10 +178,10 @@ private struct HistoryRowHeader<Pills: View>: View {
     }
 
     var body: some View {
-        PipFlowLayout(spacing: 8) {
+        UniMateFlowLayout(spacing: 8) {
             Text(time)
                 .font(.caption.monospacedDigit())
-                .foregroundStyle(PipDesign.secondary)
+                .foregroundStyle(UniMateDesign.secondary)
                 .padding(.vertical, 5)
             pills
         }
@@ -202,12 +202,12 @@ private struct ContextHistoryRow: View {
                 PlanTag(text: "\(s.availableMinutes) min", symbol: "timer")
                 Spacer()
                 Text(DateFormatting.dayTime(entry.createdAt) ?? entry.createdAt)
-                    .font(.caption).foregroundStyle(PipDesign.secondary)
+                    .font(.caption).foregroundStyle(UniMateDesign.secondary)
             }
             Text(plan.doNow?.label ?? "No fit").font(.headline)
                 .fixedSize(horizontal: false, vertical: true)
             if !entry.actions.isEmpty {
-                PlanTag(text: "Started", symbol: "checkmark", tint: PipDesign.positive)
+                PlanTag(text: "Started", symbol: "checkmark", tint: UniMateDesign.positive)
             }
             DisclosureGroup {
                 Text(inputLine(s)).font(.footnote).padding(.top, 6)
@@ -216,7 +216,7 @@ private struct ContextHistoryRow: View {
             } label: {
                 Label("Context snapshot", systemImage: "slider.horizontal.3").font(.caption.weight(.medium))
             }
-            .foregroundStyle(PipDesign.secondary)
+            .foregroundStyle(UniMateDesign.secondary)
         }
         .padding(.vertical, 12)
     }
@@ -233,10 +233,10 @@ private struct ContextHistoryRow: View {
 
     private static func stateTint(_ state: ContextResultState) -> Color {
         switch state {
-        case .feasible: return PipDesign.positive
-        case .conditional: return PipDesign.warning
-        case .conflict: return PipDesign.danger
-        case .needsReview: return PipDesign.warning
+        case .feasible: return UniMateDesign.positive
+        case .conditional: return UniMateDesign.warning
+        case .conflict: return UniMateDesign.danger
+        case .needsReview: return UniMateDesign.warning
         }
     }
 
@@ -272,15 +272,15 @@ private struct DecisionRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: entry.trigger == .rerank ? "arrow.triangle.2.circlepath" : "text.bubble.fill")
-                .font(.subheadline).foregroundStyle(PipDesign.accent)
-                .frame(width: 36, height: 36).background(PipDesign.mist, in: Circle())
+                .font(.subheadline).foregroundStyle(UniMateDesign.accent)
+                .frame(width: 36, height: 36).background(UniMateDesign.mist, in: Circle())
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text(entry.trigger == .rerank ? "PLAN UPDATED" : "PLAN CREATED")
-                        .font(.caption2.weight(.bold)).tracking(0.8).foregroundStyle(PipDesign.accent)
+                        .font(.caption2.weight(.bold)).tracking(0.8).foregroundStyle(UniMateDesign.accent)
                     Spacer()
                     Text(DateFormatting.dayTime(entry.createdAt) ?? entry.createdAt)
-                        .font(.caption2).foregroundStyle(PipDesign.secondary)
+                        .font(.caption2).foregroundStyle(UniMateDesign.secondary)
                 }
                 Text(entry.doNowTitle ?? "Plan saved").font(.headline)
                     .fixedSize(horizontal: false, vertical: true)
@@ -289,7 +289,7 @@ private struct DecisionRow: View {
                 }
                 if let last = entry.actions.last {
                     Label(last.kind.pastTenseLabel, systemImage: last.kind == .drop ? "xmark.circle" : "checkmark.circle")
-                        .font(.caption.weight(.semibold)).foregroundStyle(last.kind == .done || last.kind == .startNow ? PipDesign.positive : PipDesign.secondary)
+                        .font(.caption.weight(.semibold)).foregroundStyle(last.kind == .done || last.kind == .startNow ? UniMateDesign.positive : UniMateDesign.secondary)
                 }
                 DisclosureGroup {
                     if let quote { Text("“\(quote)”").font(.subheadline).padding(.top, 6) }
@@ -303,7 +303,7 @@ private struct DecisionRow: View {
                 } label: {
                     Text("Decision details").font(.caption.weight(.medium)).frame(minHeight: 30)
                 }
-                .foregroundStyle(PipDesign.secondary)
+                .foregroundStyle(UniMateDesign.secondary)
             }
         }
         .padding(.vertical, 14)
@@ -337,7 +337,7 @@ private struct PivotRow: View {
                 Text(sentence)
                     .font(.subheadline)
                     .italic()
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             }
@@ -353,7 +353,7 @@ private struct PivotField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(label)
-                .pipEyebrow()
+                .uniMateEyebrow()
             Text(text)
                 .font(.subheadline)
                 .fixedSize(horizontal: false, vertical: true)

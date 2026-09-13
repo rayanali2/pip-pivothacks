@@ -1,5 +1,5 @@
 -- =============================================================================
--- Pip / Snowflake layer  --  01_schema.sql
+-- UniMate / Snowflake layer  --  01_schema.sql
 -- Run the numbered files top-to-bottom in a Snowsight worksheet:
 --   01_schema.sql -> 02_stage.sql -> 03_functions.sql -> 04_views.sql -> 05_seed.sql
 --   (06_smoke_test.sql is optional; it mutates the demo rows, so re-run 05 after it)

@@ -8,24 +8,24 @@ struct HomeView: View {
     @State private var submittedText = ""
 
     private var trimmedTyped: String { typedText.trimmingCharacters(in: .whitespacesAndNewlines) }
-    private var hasResult: Bool { model.hasCapture && model.currentPlan?.doNow != nil && !model.needsText && model.pipState != .listening && !model.isRevealingPipeline }
+    private var hasResult: Bool { model.hasCapture && model.currentPlan?.doNow != nil && !model.needsText && model.uniMateState != .listening && !model.isRevealingUniMateeline }
 
     var body: some View {
         ScrollView {
-            VStack(spacing: PipDesign.gap) {
+            VStack(spacing: UniMateDesign.gap) {
                 header
                 HomeContextStrip()
                 hero
-                if model.pipState == .thinking || model.isRevealingPipeline {
+                if model.uniMateState == .thinking || model.isRevealingUniMateeline {
                     // Only a new capture reveals stages; a rerank from Home would show the last capture's.
-                    if model.isRevealingPipeline {
-                        PipelineRevealView()
+                    if model.isRevealingUniMateeline {
+                        UniMateelineRevealView()
                     } else {
-                        PipStatusView(symbol: "", title: "Finding your next step", detail: "Checking time, tasks and deadlines", loading: true)
-                            .pipCard()
+                        UniMateStatusView(symbol: "", title: "Finding your next step", detail: "Checking time, tasks and deadlines", loading: true)
+                            .uniMateCard()
                     }
                     if !submittedText.isEmpty {
-                        Text("“\(submittedText)”").font(.footnote).foregroundStyle(PipDesign.secondary)
+                        Text("“\(submittedText)”").font(.footnote).foregroundStyle(UniMateDesign.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -33,53 +33,53 @@ struct HomeView: View {
                     DoNowCard(item: item, planNow: plan.reasoning.now)
                     UpNextList(plan: plan)
                 }
-                if model.hasCapture && model.pipState != .listening {
+                if model.hasCapture && model.uniMateState != .listening {
                     TranscriptCard(onTypeInstead: { inputFocused = true })
                 }
                 controls
                 if model.isOffline {
-                    PipStatusView(symbol: "wifi.slash", title: "Server unavailable", detail: Config.isDemoMode ? "Developer demo data is active." : "Reconnect to create or update your plan. Check the server address in Schedule.")
+                    UniMateStatusView(symbol: "wifi.slash", title: "Server unavailable", detail: Config.isDemoMode ? "Developer demo data is active." : "Reconnect to create or update your plan. Check the server address in Schedule.")
                 }
             }
-            .padding(.horizontal, PipDesign.page)
+            .padding(.horizontal, UniMateDesign.page)
             .padding(.top, 8)
             .padding(.bottom, 28)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: hasResult)
         }
         .scrollDismissesKeyboard(.interactively)
-        .pipScreen()
+        .uniMateScreen()
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: model.textFocusRequest) { _, _ in inputFocused = true }
-        .onChange(of: model.pipState) { _, state in
+        .onChange(of: model.uniMateState) { _, state in
             if state != .thinking { submittedText = "" }
         }
     }
 
     private var header: some View {
         HStack(alignment: .center) {
-            Text("Hey, I’m Pip.").font(PipDesign.title)
+            Text("Hey, I’m UniMate.").font(UniMateDesign.title)
             Spacer(minLength: 8)
             Button { model.toggleMute() } label: {
                 Image(systemName: model.isMuted ? "speaker.slash" : "speaker.wave.2")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(PipDesign.ink)
+                    .foregroundStyle(UniMateDesign.ink)
                     .frame(width: 44, height: 44)
-                    .background(PipDesign.surface, in: Circle())
-                    .overlay { Circle().strokeBorder(PipDesign.line) }
+                    .background(UniMateDesign.surface, in: Circle())
+                    .overlay { Circle().strokeBorder(UniMateDesign.line) }
             }
-            .accessibilityLabel(model.isMuted ? "Unmute Pip" : "Mute Pip")
+            .accessibilityLabel(model.isMuted ? "Unmute UniMate" : "Mute UniMate")
         }
     }
 
     private var hero: some View {
         VStack(spacing: 6) {
-            PenguinView(state: model.pipState, size: hasResult || model.needsText ? 60 : 128, ready: hasResult)
+            PenguinView(state: model.uniMateState, size: hasResult || model.needsText ? 60 : 128, ready: hasResult)
             // Only the idle prompt; while listening the status pill by the mic says it once.
-            if !hasResult && !model.needsText && model.pipState == .idle {
+            if !hasResult && !model.needsText && model.uniMateState == .idle {
                 Text("What’s on your mind?")
-                    .font(PipDesign.heading).multilineTextAlignment(.center)
+                    .font(UniMateDesign.heading).multilineTextAlignment(.center)
                 Text("Say it all. I’ll pick one thing.")
-                    .font(.subheadline).foregroundStyle(PipDesign.secondary)
+                    .font(.subheadline).foregroundStyle(UniMateDesign.secondary)
                     .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -88,29 +88,29 @@ struct HomeView: View {
 
     private var controls: some View {
         VStack(spacing: 12) {
-            if model.pipState == .listening && !model.isFollowUpRecording { RecordingStatus() }
+            if model.uniMateState == .listening && !model.isFollowUpRecording { RecordingStatus() }
             HoldToTalkButton(
-                isListening: model.pipState == .listening && !model.isFollowUpRecording,
+                isListening: model.uniMateState == .listening && !model.isFollowUpRecording,
                 diameter: hasResult ? 60 : 84,
                 onPress: { model.startRecording() },
                 onRelease: { model.stopRecordingAndSend() }
             )
-            .disabled(model.pipState == .thinking)
+            .disabled(model.uniMateState == .thinking)
             // Room for the halo so it never covers the caption.
             .padding(.vertical, hasResult ? 10 : 16)
-            Text(hasResult ? "Hold to tell Pip more" : "Hold to talk")
-                .font(.footnote.weight(.semibold)).foregroundStyle(PipDesign.secondary)
+            Text(hasResult ? "Hold to tell UniMate more" : "Hold to talk")
+                .font(.footnote.weight(.semibold)).foregroundStyle(UniMateDesign.secondary)
             HStack(alignment: .bottom, spacing: 8) {
                 TextField("Or type your day…", text: $typedText, axis: .vertical)
                     .lineLimit(1...4).focused($inputFocused)
                     .padding(.horizontal, 16).padding(.vertical, 12)
-                    .background(PipDesign.surface, in: RoundedRectangle(cornerRadius: PipDesign.radius, style: .continuous))
-                    .overlay { RoundedRectangle(cornerRadius: PipDesign.radius, style: .continuous).strokeBorder(PipDesign.fieldLine) }
+                    .background(UniMateDesign.surface, in: RoundedRectangle(cornerRadius: UniMateDesign.radius, style: .continuous))
+                    .overlay { RoundedRectangle(cornerRadius: UniMateDesign.radius, style: .continuous).strokeBorder(UniMateDesign.fieldLine) }
                 Button(action: sendTyped) {
                     Image(systemName: "arrow.up")
                         .font(.body.weight(.bold)).foregroundStyle(.white)
                         .frame(width: 46, height: 46)
-                        .background(PipDesign.accent, in: Circle())
+                        .background(UniMateDesign.accent, in: Circle())
                 }
                 .disabled(trimmedTyped.isEmpty || model.isBusy)
                 .opacity(trimmedTyped.isEmpty || model.isBusy ? 0.4 : 1)
@@ -135,7 +135,7 @@ struct HomeView: View {
     private var demoButton: some View {
         Button { typedText = SampleData.demoSentence; inputFocused = true } label: {
             Label("Use demo sentence", systemImage: "text.quote")
-                .labelStyle(PipCompactLabelStyle())
+                .labelStyle(UniMateCompactLabelStyle())
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
         }
@@ -171,7 +171,7 @@ private struct UpNextList: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 if !items.isEmpty {
-                    Text("Up next").pipEyebrow()
+                    Text("Up next").uniMateEyebrow()
                 }
                 Spacer(minLength: 8)
                 Button { model.selectedTab = .today } label: {
@@ -194,8 +194,8 @@ private struct UpNextList: View {
                     }
                 }
                 .padding(.horizontal, 14)
-                .background(PipDesign.surface, in: RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous))
-                .overlay { RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous).strokeBorder(PipDesign.line) }
+                .background(UniMateDesign.surface, in: RoundedRectangle(cornerRadius: UniMateDesign.radiusSmall, style: .continuous))
+                .overlay { RoundedRectangle(cornerRadius: UniMateDesign.radiusSmall, style: .continuous).strokeBorder(UniMateDesign.line) }
             }
         }
     }
@@ -207,7 +207,7 @@ private struct UpNextList: View {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Image(systemName: item.kind == .fixedBlock ? "lock.fill" : "circle.dotted")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(PipDesign.accent)
+                    .foregroundStyle(UniMateDesign.accent)
                     .frame(width: stacked ? nil : 18)
                     .accessibilityLabel(item.kind == .fixedBlock ? "Fixed class" : "Flexible task")
                 Text(item.title)
@@ -218,7 +218,7 @@ private struct UpNextList: View {
             if let time = item.timeLabel(relativeTo: plan.reasoning.now) {
                 Text(time)
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
                     .lineLimit(stacked ? nil : 1)
                     .fixedSize(horizontal: !stacked, vertical: stacked)
             }
@@ -237,15 +237,15 @@ private struct TranscriptCard: View {
         @Bindable var model = model
         VStack(alignment: .leading, spacing: 12) {
             if model.needsText {
-                PipStatusView(symbol: "mic.slash", title: "Let’s try typing", detail: "Pip couldn’t hear that.")
+                UniMateStatusView(symbol: "mic.slash", title: "Let’s try typing", detail: "UniMate couldn’t hear that.")
                 Button("Type instead", action: onTypeInstead).buttonStyle(PrimaryButtonStyle())
             } else {
                 DisclosureGroup {
                     TextField("What you said", text: $model.draft, axis: .vertical)
                         .lineLimit(2...8).font(.body)
                         .padding(.horizontal, 12).padding(.vertical, 10)
-                        .background(PipDesign.background, in: RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous))
-                        .overlay { RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous).strokeBorder(PipDesign.fieldLine) }
+                        .background(UniMateDesign.background, in: RoundedRectangle(cornerRadius: UniMateDesign.radiusSmall, style: .continuous))
+                        .overlay { RoundedRectangle(cornerRadius: UniMateDesign.radiusSmall, style: .continuous).strokeBorder(UniMateDesign.fieldLine) }
                         .padding(.top, 8)
                     if model.isDraftEdited {
                         Button("Update plan") { model.submitEditedTranscript() }
@@ -253,7 +253,7 @@ private struct TranscriptCard: View {
                     }
                 } label: {
                     Label("Your words", systemImage: "text.bubble")
-                        .font(.subheadline.weight(.semibold)).foregroundStyle(PipDesign.ink)
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(UniMateDesign.ink)
                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                 }
@@ -261,7 +261,7 @@ private struct TranscriptCard: View {
                 .padding(.vertical, -6)
             }
         }
-        .pipCard()
+        .uniMateCard()
     }
 }
 

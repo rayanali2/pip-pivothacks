@@ -2,7 +2,7 @@ import SwiftUI
 import UserNotifications
 
 @main
-struct PipApp: App {
+struct UniMateApp: App {
     @State private var model = AppModel()
 
     var body: some Scene {
@@ -10,7 +10,7 @@ struct PipApp: App {
             RootView()
                 .environment(model)
                 .task {
-                    UNUserNotificationCenter.current().delegate = PipNotificationDelegate.shared
+                    UNUserNotificationCenter.current().delegate = UniMateNotificationDelegate.shared
                     await model.bootstrap()
                 }
         }

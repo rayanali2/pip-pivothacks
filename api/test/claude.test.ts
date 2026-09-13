@@ -9,7 +9,7 @@ import { planStructure } from '../src/demo/fixtures';
 import { claudeExtract, ClaudeExtractError, OUTPUT_SCHEMA, type ClaudeClient, type ClaudeMessageLike } from '../src/llm/claudeExtract';
 import { createTranscriptExtractor, type TranscriptExtractor } from '../src/llm/extractor';
 import { heuristicExtract } from '../src/ranker/extract';
-import { PipService } from '../src/service';
+import { UniMateService } from '../src/service';
 import type { Plan, PlanItem } from '../src/types';
 import { demoNow, mockService } from './helpers';
 
@@ -78,8 +78,8 @@ function demoClaudeOutput(now: Date): unknown {
 
 const OPTIONS = { model: 'claude-haiku-4-5', timeoutMs: 2000 };
 
-function serviceWith(extractor: TranscriptExtractor): PipService {
-  return new PipService('mock', new MemoryBackend({ clock: fixedClock(demoNow()), snowflakeConfigured: false, extractor }));
+function serviceWith(extractor: TranscriptExtractor): UniMateService {
+  return new UniMateService('mock', new MemoryBackend({ clock: fixedClock(demoNow()), snowflakeConfigured: false, extractor }));
 }
 
 function copyOf(plan: Plan): unknown {

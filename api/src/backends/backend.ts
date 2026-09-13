@@ -44,7 +44,7 @@ export interface WarmPingResponse extends Sourced {
 
 /**
  * One implementation per data source. MemoryBackend (source 'fallback') and LiveBackend (source 'snowflake').
- * Every method resolves to a full response body including `source`; PipService adds fallback on errors.
+ * Every method resolves to a full response body including `source`; UniMateService adds fallback on errors.
  */
 export interface Backend {
   health(refresh: boolean): Promise<HealthResponse>;

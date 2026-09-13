@@ -1,6 +1,6 @@
 import Foundation
 
-enum PipError: LocalizedError {
+enum UniMateError: LocalizedError {
     case badURL
     case invalidResponse
     case http(Int)
@@ -17,17 +17,17 @@ enum PipError: LocalizedError {
         case .http(let code): return "The server returned HTTP \(code)."
         case .server(let message): return message
         case .missingFixture(let name): return "Offline data \(name).json is missing from the app."
-        case .noPlan: return "Tell Pip about your day first."
-        case .previewNeedsServer: return "Previews need the Pip server."
-        case .serverUnavailable: return "Pip couldn't reach the server. Check the server address in Schedule and try again."
+        case .noPlan: return "Tell UniMate about your day first."
+        case .previewNeedsServer: return "Previews need the UniMate server."
+        case .serverUnavailable: return "UniMate couldn't reach the server. Check the server address in Schedule and try again."
         }
     }
 }
 
-/// Everything the app asks of the Pip API. RemoteService talks HTTP;
+/// Everything the app asks of the UniMate API. RemoteService talks HTTP;
 /// OfflineService serves bundled fixtures only in explicit developer demo mode.
 @MainActor
-protocol PipService: AnyObject {
+protocol UniMateService: AnyObject {
     var isOffline: Bool { get }
     func health() async throws -> HealthResponse
     /// clientTranscript: the on-device speech result, sent as client_transcript when non-empty.
@@ -51,7 +51,7 @@ protocol PipService: AnyObject {
 }
 
 @MainActor
-final class RemoteService: PipService {
+final class RemoteService: UniMateService {
     /// Cortex transcription and planning can take a while.
     static let longTimeout: TimeInterval = 60
     static let shortTimeout: TimeInterval = 10
@@ -60,8 +60,8 @@ final class RemoteService: PipService {
     let isOffline = false
 
     private let session: URLSession
-    private let decoder = PipCoding.makeDecoder()
-    private let encoder = PipCoding.makeEncoder()
+    private let decoder = UniMateCoding.makeDecoder()
+    private let encoder = UniMateCoding.makeEncoder()
 
     init(baseURL: URL) {
         self.baseURL = baseURL
@@ -72,7 +72,7 @@ final class RemoteService: PipService {
         self.session = URLSession(configuration: configuration)
     }
 
-    // MARK: PipService
+    // MARK: UniMateService
 
     func health() async throws -> HealthResponse {
         try await health(timeout: Self.shortTimeout)
@@ -85,7 +85,7 @@ final class RemoteService: PipService {
 
     func captureVoice(fileURL: URL, followupPlanID: String?, clientTranscript: String?) async throws -> CaptureResponse {
         let audio = try Data(contentsOf: fileURL)
-        let boundary = "PipBoundary-\(UUID().uuidString)"
+        let boundary = "UniMateBoundary-\(UUID().uuidString)"
         var body = Data()
         body.appendMultipartField(name: "student_id", value: Config.studentID, boundary: boundary)
         if let followupPlanID {
@@ -206,7 +206,7 @@ final class RemoteService: PipService {
 
     private func makeURL(_ path: String, query: [URLQueryItem]) throws -> URL {
         guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
-            throw PipError.badURL
+            throw UniMateError.badURL
         }
         var basePath = components.path
         while basePath.hasSuffix("/") {
@@ -214,7 +214,7 @@ final class RemoteService: PipService {
         }
         components.path = basePath + path
         components.queryItems = query.isEmpty ? nil : query
-        guard let url = components.url else { throw PipError.badURL }
+        guard let url = components.url else { throw UniMateError.badURL }
         return url
     }
 
@@ -247,13 +247,13 @@ final class RemoteService: PipService {
     private func send<T: Decodable>(_ request: URLRequest, as type: T.Type) async throws -> T {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
-            throw PipError.invalidResponse
+            throw UniMateError.invalidResponse
         }
         guard (200..<300).contains(http.statusCode) else {
             if let body = try? decoder.decode(ErrorResponse.self, from: data) {
-                throw PipError.server(body.error)
+                throw UniMateError.server(body.error)
             }
-            throw PipError.http(http.statusCode)
+            throw UniMateError.http(http.statusCode)
         }
         return try decoder.decode(type, from: data)
     }

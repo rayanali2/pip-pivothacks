@@ -23,4 +23,3 @@ try{assert.equal(response.status,200);assert.equal(follow.source,'snowflake');as
 results.push(outcome);console.log(JSON.stringify(outcome));
 fs.writeFileSync('tmp/brain-dump-audit.json',JSON.stringify(results,null,2));
 })().catch(e=>{console.error(e);process.exitCode=1});
-

@@ -336,7 +336,7 @@ function pipBuildSkeleton(S) {
     if (sr.guard) {
       if (missedAt === null) {
         it.why = sr.title + ' has been open ' + Math.round(sr.hours_open) + ' h and put off ' + pipPlural(sr.defer_count, 'time') +
-          ', so Pip keeps it on today\'s plan' + (at ? ' at ' + at : '') + '.';
+          ', so UniMate keeps it on today\'s plan' + (at ? ' at ' + at : '') + '.';
       }
       skel.balance_guard.push(pipGuardSentence(S, sr, slot ? slot.start : null));
     }
@@ -359,7 +359,7 @@ function pipBuildSkeleton(S) {
     gi.action = /sleep/i.test(g.title + ' ' + g.raw_text) ? 'Lights out by ' + bed : 'Start ' + g.title + ' at ' + bed;
     if (g.guard) {
       gi.why = g.title + ' has been open ' + Math.round(g.hours_open) + ' h and put off ' + pipPlural(g.defer_count, 'time') +
-        ', so Pip protects it at ' + bed + ' tonight.';
+        ', so UniMate protects it at ' + bed + ' tonight.';
       skel.balance_guard.push(pipGuardSentence(S, g, S.bed_min));
     } else {
       gi.why = 'Rest keeps tomorrow workable, so it starts at ' + bed + ' tonight.';

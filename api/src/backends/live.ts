@@ -64,12 +64,12 @@ import {
 } from '../pipeline';
 import { isConnectionError, putFile, SnowflakeClient, withSqlLogging, withTimeout, type SqlExecutor } from '../snowflake/client';
 import { describeCortex, emptyCortexStatus, readCortexConfig, verifyCortex } from '../snowflake/cortex';
-import { PipRepo, readExtractResult, type ExtractSummary } from '../snowflake/repo';
+import { UniMateRepo, readExtractResult, type ExtractSummary } from '../snowflake/repo';
 import { asRecord, normalizePlanFromSnowflake, parseAction, procedureError } from '../snowflake/rows';
-import type { Backend, CaptureTextInput, CaptureVoiceInput, WarmPingResponse } from './backend';
+import type { AudioUpload, Backend, CaptureTextInput, CaptureVoiceInput, WarmPingResponse } from './backend';
 
 export interface LiveTimeouts {
-  /** captureText / captureVoice / rerank (below the iOS 60 s timeout, so PipService can still fall back) */
+  /** captureText / captureVoice / rerank (below the iOS 60 s timeout, so UniMateService can still fall back) */
   captureMs: number;
   /** every other Snowflake-touching method */
   defaultMs: number;
@@ -146,13 +146,13 @@ function hadCortexErrors(raw: unknown): boolean {
 /**
  * Snowflake-backed implementation. Plans come from CALL BUILD_PLAN (source 'snowflake'); when BUILD_PLAN fails or returns
  * an invalid plan, the TypeScript ranker runs over Snowflake-loaded data and the plan is stored in PLANS (source 'fallback').
- * Anything that cannot reach Snowflake throws (or times out), and PipService answers from the in-memory backend instead.
+ * Anything that cannot reach Snowflake throws (or times out), and UniMateService answers from the in-memory backend instead.
  */
 export class LiveBackend implements Backend {
   readonly config: AppConfig;
   readonly clock: Clock;
   private readonly db: SqlExecutor;
-  private readonly repo: PipRepo;
+  private readonly repo: UniMateRepo;
   private readonly client: SnowflakeClient | null;
   private readonly timeouts: LiveTimeouts;
   private readonly extractor: TranscriptExtractor;
@@ -176,7 +176,7 @@ export class LiveBackend implements Backend {
       this.client = new SnowflakeClient({ settings: config.snowflake, timezone: config.timezone });
       this.db = this.client;
     }
-    this.repo = new PipRepo(this.db);
+    this.repo = new UniMateRepo(this.db);
   }
 
   async close(): Promise<void> {
@@ -459,16 +459,23 @@ export class LiveBackend implements Backend {
 
   private async captureFlow(capture: Capture, transcribe: PipelineStage): Promise<CaptureResponse> {
     const now = this.clock.now();
+    const started = performance.now();
     const question = heuristicExtract(capture.transcript, now, []).question;
     const extract = await this.extractForCapture(capture, now, question);
+    const extractedAt = performance.now();
+    // A generic "what should I do?" is answered by the ranked plan itself.
+    // Other questions keep the existing AI wording/answer path.
+    const genericQuestion = question !== null && /^what should i do(?: first| next)?[?.!]*$/i.test(question.trim());
+    const fast = this.config.fastCapturePlan && (!question || genericQuestion);
     const outcome = await this.planWithFallback({
       studentId: capture.student_id,
       captureId: capture.capture_id,
       trigger: 'capture',
       context: { available_minutes: null, cash_available: null, question },
-      extra: {},
+      extra: fast ? { skip_llm: true } : {},
       previous: null,
     });
+    log.info(`capture timing extraction_ms=${Math.round(extractedAt - started)} plan_ms=${Math.round(performance.now() - extractedAt)} fast=${fast}`);
     return {
       source: outcome.source,
       capture,
@@ -642,33 +649,30 @@ export class LiveBackend implements Backend {
     };
   }
 
-  /** PUT the audio as capture-<uuid>.m4a and AI_TRANSCRIBE it; on failure re-PUT the same bytes as .mp4 and retry once. */
-  private async transcribeUpload(studentId: string, audio: Buffer): Promise<Transcription> {
+  /** PUT browser WebM or iOS M4A using its real container extension, then ask AI_TRANSCRIBE. */
+  private async transcribeUpload(studentId: string, audio: AudioUpload): Promise<Transcription> {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'pip-capture-'));
     const name = `capture-${randomUUID()}`;
     const stageDir = `${safeSegment(studentId)}/${dateOnly(this.clock.realNow())}`;
+    const isWebm = /webm/i.test(audio.mimetype) || /\.webm$/i.test(audio.originalname);
+    const extensions = isWebm ? ['webm'] : ['m4a', 'mp4'];
     try {
-      const m4aStage = `${stageDir}/${name}.m4a`;
-      const m4aFile = path.join(dir, `${name}.m4a`);
-      await fs.writeFile(m4aFile, audio);
-      await putFile(this.db, m4aFile, stageDir);
-      try {
-        return { transcript: await this.repo.transcribe(m4aStage), stagePath: m4aStage };
-      } catch (err) {
-        if (isConnectionError(err)) throw err;
-        log.warn(`AI_TRANSCRIBE failed on ${m4aStage}, retrying as .mp4: ${errorMessage(err)}`);
+      let firstStage = '';
+      for (const [index, extension] of extensions.entries()) {
+        const stagePath = `${stageDir}/${name}.${extension}`;
+        if (index === 0) firstStage = stagePath;
+        const localFile = path.join(dir, `${name}.${extension}`);
+        await fs.writeFile(localFile, audio.buffer);
+        await putFile(this.db, localFile, stageDir);
+        try {
+          return { transcript: await this.repo.transcribe(stagePath), stagePath };
+        } catch (err) {
+          if (isConnectionError(err)) throw err;
+          const retrying = index + 1 < extensions.length ? `, retrying as .${extensions[index + 1]}` : '';
+          log.warn(`AI_TRANSCRIBE failed on ${stagePath}${retrying}: ${errorMessage(err)}`);
+        }
       }
-      const mp4Stage = `${stageDir}/${name}.mp4`;
-      const mp4File = path.join(dir, `${name}.mp4`);
-      await fs.writeFile(mp4File, audio);
-      await putFile(this.db, mp4File, stageDir);
-      try {
-        return { transcript: await this.repo.transcribe(mp4Stage), stagePath: mp4Stage };
-      } catch (err) {
-        if (isConnectionError(err)) throw err;
-        log.warn(`AI_TRANSCRIBE failed on ${mp4Stage} too; asking the student to type: ${errorMessage(err)}`);
-        return { transcript: null, stagePath: m4aStage };
-      }
+      return { transcript: null, stagePath: firstStage };
     } finally {
       await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
     }
@@ -701,7 +705,7 @@ export class LiveBackend implements Backend {
       let failure = 'No audio uploaded';
       if (audio && audio.buffer.length > 0) {
         const started = perfNow();
-        const t = await this.transcribeUpload(input.student_id, audio.buffer);
+        const t = await this.transcribeUpload(input.student_id, audio);
         transcribeMs = elapsed(started);
         stagePath = t.stagePath;
         const transcript = t.transcript === null ? '' : t.transcript.trim();

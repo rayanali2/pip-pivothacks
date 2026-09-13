@@ -4,7 +4,7 @@ import EventKit
 import EventKitUI
 import UserNotifications
 
-private struct PipReminder: Codable, Identifiable {
+private struct UniMateReminder: Codable, Identifiable {
     let id: UUID
     var title: String
     var date: Date
@@ -14,21 +14,21 @@ private struct PipReminder: Codable, Identifiable {
 
 @MainActor
 private final class ReminderListStore: ObservableObject {
-    @Published var items: [PipReminder] = []
+    @Published var items: [UniMateReminder] = []
     private let key = "pip.reminders.v1"
     init() {
         if let data = UserDefaults.standard.data(forKey: key),
-           let saved = try? JSONDecoder().decode([PipReminder].self, from: data) { items = saved }
+           let saved = try? JSONDecoder().decode([UniMateReminder].self, from: data) { items = saved }
     }
     func save() {
         if let data = try? JSONEncoder().encode(items) { UserDefaults.standard.set(data, forKey: key) }
     }
-    func remove(_ item: PipReminder) {
+    func remove(_ item: UniMateReminder) {
         cancel(item)
         items.removeAll { $0.id == item.id }
         save()
     }
-    func complete(_ item: PipReminder) {
+    func complete(_ item: UniMateReminder) {
         cancel(item)
         if let index = items.firstIndex(where: { $0.id == item.id }) {
             items[index].completed = true
@@ -36,13 +36,13 @@ private final class ReminderListStore: ObservableObject {
             save()
         }
     }
-    private func cancel(_ item: PipReminder) {
+    private func cancel(_ item: UniMateReminder) {
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: [item.id.uuidString])
         center.removeDeliveredNotifications(withIdentifiers: [item.id.uuidString])
     }
     func add(title: String, date: Date, notify: Bool) async throws {
-        let item = PipReminder(id: UUID(), title: title, date: date, notify: notify, completed: false)
+        let item = UniMateReminder(id: UUID(), title: title, date: date, notify: notify, completed: false)
         if notify {
             guard date > Date() else { throw ReminderFailure.pastDate }
             let center = UNUserNotificationCenter.current()
@@ -53,7 +53,7 @@ private final class ReminderListStore: ObservableObject {
             guard pending.count < 60 else { throw ReminderFailure.tooMany }
             let content = UNMutableNotificationContent()
             content.title = title
-            content.body = "Your Pip reminder is due."
+            content.body = "Your UniMate reminder is due."
             content.sound = .default
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
             let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
@@ -91,12 +91,12 @@ struct PlanSaveActions: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.large)
-            .tint(PipDesign.accent)
+            .tint(UniMateDesign.accent)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 4)
         .sheet(isPresented: $showCalendar) { CalendarDraftView(plan: plan) }
-        .sheet(isPresented: $showReminders) { PipRemindersView(plan: plan) }
+        .sheet(isPresented: $showReminders) { UniMateRemindersView(plan: plan) }
     }
 
     /// `singleLine` keeps labels on one line in the side-by-side layout so ViewThatFits falls back to stacking.
@@ -151,7 +151,7 @@ private struct CalendarDraftView: View {
         NavigationStack {
             Form {
                 if let answer = plan.reasoning.answer {
-                    Section("Pip’s advice") {
+                    Section("UniMate’s advice") {
                         Text(answer)
                             .font(.subheadline)
                             .fixedSize(horizontal: false, vertical: true)
@@ -195,22 +195,22 @@ private struct CalendarDraftView: View {
                     }
                     .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || end <= start)
                     if googleOpened {
-                        Text("Tap Save in Google Calendar to finish. Pip can’t confirm it saved.")
-                            .font(.footnote).foregroundStyle(PipDesign.secondary)
+                        Text("Tap Save in Google Calendar to finish. UniMate can’t confirm it saved.")
+                            .font(.footnote).foregroundStyle(UniMateDesign.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if googleFailed {
                         Text("Couldn’t open Google Calendar. Check browser settings.")
-                            .font(.footnote).foregroundStyle(PipDesign.danger)
+                            .font(.footnote).foregroundStyle(UniMateDesign.danger)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 } footer: {
-                    Text("Google gets the name, times and location. Pip never reads calendars or changes your plan from them.")
+                    Text("Google gets the name, times and location. UniMate never reads calendars or changes your plan from them.")
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(PipDesign.background)
-            .tint(PipDesign.accent)
+            .background(UniMateDesign.background)
+            .tint(UniMateDesign.accent)
             .navigationTitle("Add event")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
@@ -255,7 +255,7 @@ private struct CalendarEventEditor: UIViewControllerRepresentable {
     }
 }
 
-struct PipRemindersView: View {
+struct UniMateRemindersView: View {
     var plan: Plan? = nil
     @Environment(\.dismiss) private var dismiss
     @StateObject private var store = ReminderListStore()
@@ -302,19 +302,19 @@ struct PipRemindersView: View {
                 }
                 .disabled(saving)
                 Section {
-                    if store.items.isEmpty { Text("No reminders yet").foregroundStyle(PipDesign.secondary) }
+                    if store.items.isEmpty { Text("No reminders yet").foregroundStyle(UniMateDesign.secondary) }
                     ForEach(store.items.sorted { $0.date < $1.date }) { item in
                         VStack(alignment: .leading, spacing: 4) {
                             Label(item.title, systemImage: item.completed ? "checkmark.circle.fill" : (item.notify ? "bell" : "circle"))
                                 .strikethrough(item.completed)
                                 .fixedSize(horizontal: false, vertical: true)
                             Text(item.date.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption).foregroundStyle(PipDesign.secondary)
+                                .font(.caption).foregroundStyle(UniMateDesign.secondary)
                         }
-                        .foregroundStyle(item.completed ? PipDesign.secondary : PipDesign.ink)
+                        .foregroundStyle(item.completed ? UniMateDesign.secondary : UniMateDesign.ink)
                         .swipeActions {
                             Button("Delete", role: .destructive) { store.remove(item) }
-                            if !item.completed { Button("Done") { store.complete(item) }.tint(PipDesign.positive) }
+                            if !item.completed { Button("Done") { store.complete(item) }.tint(UniMateDesign.positive) }
                         }
                     }
                 } header: {
@@ -326,8 +326,8 @@ struct PipRemindersView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(PipDesign.background)
-            .tint(PipDesign.accent)
+            .background(UniMateDesign.background)
+            .tint(UniMateDesign.accent)
             .navigationTitle("Reminders")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
@@ -339,8 +339,8 @@ struct PipRemindersView: View {
 }
 
 /// Keep a strong reference: UNUserNotificationCenter's delegate is weak.
-final class PipNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
-    static let shared = PipNotificationDelegate()
+final class UniMateNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = UniMateNotificationDelegate()
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {

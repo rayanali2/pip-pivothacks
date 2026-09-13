@@ -80,7 +80,7 @@ function pipPlanPrompt(S, skel) {
   for (i = 0; i < skel.warnings.length; i++) { warnings.push(skel.warnings[i].text); }
   var skeleton = { do_now: pipLiteItem(skel.do_now), next: pipLiteItem(skel.next), today: pipLiteList(skel.today), can_wait: pipLiteList(skel.can_wait) };
   return [
-    'You are Pip, a calm day planner for a first-time independent university student.',
+    'You are UniMate, a calm day planner for a first-time independent university student.',
     'A deterministic ranker already ordered the tasks. Improve the plan wording and return it.',
     'Reply with ONLY one JSON object (no prose, no code fences) with exactly this shape:',
     '{"summary":"...","answer":"... or null","do_now":{"task_id":"...","title":"...","action":"...","why":"...","starts_at":"YYYY-MM-DDTHH:MI:SS or null","ends_at":"... or null"},' +
@@ -100,7 +100,7 @@ function pipPlanPrompt(S, skel) {
     '- Use only the task_ids listed below and never invent tasks. Every task appears exactly once across do_now, today and can_wait; a "<task_id>#cont" continuation item in today is allowed. Keep at_risk and balance_guard items in today.',
     '- next stays the fixed block item when the skeleton has one.',
     '- action is the smallest concrete step. Each why is exactly ONE sentence that cites real times (h:mm AM/PM), dollars and minutes. Never mention scores or rule ids.',
-    '- summary is one or two sentences Pip can say out loud. answer: if the student asked a question, answer it in one or two sentences; otherwise null.',
+    '- summary is one or two sentences UniMate can say out loud. answer: if the student asked a question, answer it in one or two sentences; otherwise null.',
     '- Times are local "YYYY-MM-DDTHH:MI:SS". Keep the skeleton times unless a better slot is obvious, and never overlap a fixed block.',
     '',
     'Situation:',

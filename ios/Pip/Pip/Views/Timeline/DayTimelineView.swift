@@ -54,7 +54,7 @@ struct DayTimelineView: View {
                     } else if layout.tray.isEmpty {
                         Text("Nothing else is booked today.")
                             .font(.footnote)
-                            .foregroundStyle(PipDesign.secondary)
+                            .foregroundStyle(UniMateDesign.secondary)
                             .padding(.leading, gutterWidth + Self.laneSpacing)
                     }
                 }
@@ -79,7 +79,7 @@ struct DayTimelineView: View {
             Text("YOUR DAY")
                 .font(.caption2.weight(.bold))
                 .tracking(1)
-                .foregroundStyle(PipDesign.secondary)
+                .foregroundStyle(UniMateDesign.secondary)
                 .accessibilityAddTraits(.isHeader)
             if typeSize.isAccessibilitySize {
                 minutesPicker.pickerStyle(.menu)
@@ -113,24 +113,24 @@ struct DayTimelineView: View {
                 .padding(.trailing, 8)
                 .frame(width: gutterWidth, alignment: .trailing)
             Circle()
-                .fill(PipDesign.accent)
+                .fill(UniMateDesign.accent)
                 .frame(width: Self.railOffset * 2, height: Self.railOffset * 2)
             Text(time)
                 .font(.footnote.weight(.semibold).monospacedDigit())
                 .padding(.leading, 8)
             Capsule()
-                .fill(PipDesign.accent.opacity(0.6))
+                .fill(UniMateDesign.accent.opacity(0.6))
                 .frame(height: 2)
                 .padding(.leading, 8)
         }
-        .foregroundStyle(PipDesign.accent)
+        .foregroundStyle(UniMateDesign.accent)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Now, \(time)")
     }
 
     private var rail: some View {
         Rectangle()
-            .fill(PipDesign.line)
+            .fill(UniMateDesign.line)
             .frame(width: 1)
             .frame(maxHeight: .infinity)
             .padding(.top, 8)
@@ -244,7 +244,7 @@ private enum TimelinePreviewPlans {
     private static func load<T: Decodable>(_ type: T.Type, from name: String) -> T? {
         guard let url = Bundle.main.url(forResource: name, withExtension: "json"),
               let data = try? Data(contentsOf: url) else { return nil }
-        return try? PipCoding.makeDecoder().decode(type, from: data)
+        return try? UniMateCoding.makeDecoder().decode(type, from: data)
     }
 }
 
@@ -265,10 +265,10 @@ private struct TimelineRerankPreview: View {
                     .buttonStyle(ChipButtonStyle())
                     DayTimelineView(plan: model.currentPlan ?? capture)
                 }
-                .padding(.horizontal, PipDesign.page)
+                .padding(.horizontal, UniMateDesign.page)
                 .padding(.vertical, 16)
             }
-            .pipScreen()
+            .uniMateScreen()
         }
         .environment(model)
         .onAppear {
@@ -292,11 +292,11 @@ private struct TimelineRerankPreview: View {
         ScrollView {
             if let plan = SampleData.plan {
                 DayTimelineView(plan: plan)
-                    .padding(.horizontal, PipDesign.page)
+                    .padding(.horizontal, UniMateDesign.page)
                     .padding(.vertical, 16)
             }
         }
-        .pipScreen()
+        .uniMateScreen()
     }
     .environment(AppModel.preview())
 }

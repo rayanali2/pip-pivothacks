@@ -5,7 +5,7 @@ struct TaskDetailView: View {
     @Environment(AppModel.self) private var model
     @ScaledMetric(relativeTo: .body) private var chartHeight: CGFloat = 190
     let item: PlanItem
-    let task: PipTask?
+    let task: UniMateTask?
     /// reasoning.now of the plan the item came from (scenario clock); nil uses the real clock.
     var planNow: String? = nil
 
@@ -46,29 +46,29 @@ struct TaskDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: PipDesign.gap) {
-                titleBlock.pipCard()
+            VStack(alignment: .leading, spacing: UniMateDesign.gap) {
+                titleBlock.uniMateCard()
                 if item.taskId != nil {
                     actionsSection
                 }
                 if !facts.isEmpty {
-                    factsSection.pipCard()
+                    factsSection.uniMateCard()
                 }
                 if !item.evidence.isEmpty {
-                    evidenceSection.pipCard()
+                    evidenceSection.uniMateCard()
                 }
                 if !item.curve.isEmpty {
-                    curveSection.pipCard()
+                    curveSection.uniMateCard()
                 }
                 if let task {
                     PlanDisclosure(title: "Original capture", text: task.rawText + "\n\n" + task.normalizedText, symbol: "text.bubble")
-                        .pipCard()
+                        .uniMateCard()
                 }
             }
-            .padding(.horizontal, PipDesign.page)
+            .padding(.horizontal, UniMateDesign.page)
             .padding(.vertical, 12)
         }
-        .pipScreen()
+        .uniMateScreen()
         .navigationTitle(item.title)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -92,14 +92,14 @@ struct TaskDetailView: View {
                 }
             }
             Text(item.title)
-                .font(PipDesign.title)
+                .font(UniMateDesign.title)
                 .fixedSize(horizontal: false, vertical: true)
             Text(item.action)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
             if let minutes = estimatedMinutes {
-                PipFlowLayout {
-                    PipPill(text: "\(minutes) min", systemImage: "timer")
+                UniMateFlowLayout {
+                    UniMatePill(text: "\(minutes) min", systemImage: "timer")
                 }
             }
             PlanDisclosure(title: "Why this task", text: item.why, symbol: "sparkle")
@@ -114,7 +114,7 @@ struct TaskDetailView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Label(fact.label, systemImage: factSymbol(fact.label))
                         .font(.caption)
-                        .foregroundStyle(PipDesign.secondary)
+                        .foregroundStyle(UniMateDesign.secondary)
                     Text(fact.value)
                         .font(.subheadline.weight(.semibold))
                         .fixedSize(horizontal: false, vertical: true)
@@ -140,8 +140,8 @@ struct TaskDetailView: View {
     private var evidenceSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             Label("Why it’s ranked here", systemImage: "checklist")
-                .labelStyle(PipCompactLabelStyle())
-                .pipEyebrow()
+                .labelStyle(UniMateCompactLabelStyle())
+                .uniMateEyebrow()
                 .accessibilityAddTraits(.isHeader)
             ForEach(Array(item.evidence.enumerated()), id: \.offset) { pair in
                 EvidenceRow(evidence: pair.element)
@@ -154,11 +154,11 @@ struct TaskDetailView: View {
     private var curveSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Cost of waiting", systemImage: "chart.line.uptrend.xyaxis")
-                .labelStyle(PipCompactLabelStyle())
-                .pipEyebrow()
+                .labelStyle(UniMateCompactLabelStyle())
+                .uniMateEyebrow()
                 .accessibilityAddTraits(.isHeader)
             if let kind = item.curveKind, kind != .unknown {
-                PipPill(text: "\(kind.label) curve", systemImage: "chart.xyaxis.line", tint: PipDesign.secondary)
+                UniMatePill(text: "\(kind.label) curve", systemImage: "chart.xyaxis.line", tint: UniMateDesign.secondary)
             }
             CostCurveChart(points: item.curve, hoursToDue: hoursToDue)
                 .frame(height: min(chartHeight, 320))
@@ -181,7 +181,7 @@ struct TaskDetailView: View {
             if let message = model.actionMessage {
                 Text(message)
                     .font(.footnote)
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -204,7 +204,7 @@ struct TaskDetailView: View {
         }
         return styledActionButton(button, kind: kind)
             .controlSize(.large)
-            .tint(kind == .drop ? PipDesign.danger : PipDesign.accent)
+            .tint(kind == .drop ? UniMateDesign.danger : UniMateDesign.accent)
     }
 
     /// Done is the primary action; Defer and Drop stay secondary.
@@ -236,16 +236,16 @@ private struct EvidenceRow: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Image(systemName: evidence.fired ? "checkmark.circle.fill" : "circle")
                 .font(.body.weight(.semibold))
-                .foregroundStyle(evidence.fired ? PipDesign.accent : PipDesign.secondary)
+                .foregroundStyle(evidence.fired ? UniMateDesign.accent : UniMateDesign.secondary)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(shortLabel)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(evidence.fired ? PipDesign.ink : PipDesign.secondary)
+                    .foregroundStyle(evidence.fired ? UniMateDesign.ink : UniMateDesign.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(evidence.detail)
                     .font(.footnote)
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
@@ -277,24 +277,24 @@ private struct CostCurveChart: View {
             ForEach(points) { point in
                 AreaMark(x: .value("Hours", point.hours), y: .value("Cost", point.cost))
                     .interpolationMethod(.monotone)
-                    .foregroundStyle(PipDesign.accent.opacity(0.08))
+                    .foregroundStyle(UniMateDesign.accent.opacity(0.08))
                 LineMark(
                     x: .value("Hours", point.hours),
                     y: .value("Cost", point.cost)
                 )
                 .interpolationMethod(.monotone)
-                .foregroundStyle(PipDesign.accent)
+                .foregroundStyle(UniMateDesign.accent)
                 .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
             }
 
             if let dueMarker {
                 RuleMark(x: .value("Due", dueMarker))
-                    .foregroundStyle(PipDesign.danger.opacity(0.7))
+                    .foregroundStyle(UniMateDesign.danger.opacity(0.7))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
                     .annotation(position: .top, alignment: .leading) {
                         Text("Due")
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(PipDesign.danger)
+                            .foregroundStyle(UniMateDesign.danger)
                     }
             }
         }

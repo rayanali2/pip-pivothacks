@@ -226,7 +226,7 @@ export function snowflakeWordingEngine(model: string): string {
 }
 
 /**
- * PipService answered from the in-memory backend after the live backend failed: every stage that ran is marked
+ * UniMateService answered from the in-memory backend after the live backend failed: every stage that ran is marked
  * 'fallback' and the first stage's detail starts with the reason ("Snowflake unavailable · ...").
  */
 export function markPipelineFallback(pipeline: readonly PipelineStage[], reason: string): PipelineStage[] {

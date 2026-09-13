@@ -32,9 +32,9 @@ struct TaskGlyph: View {
     var body: some View {
         Image(systemName: fixed ? "graduationcap.fill" : PlanVisuals.symbol(for: category))
             .font(.system(size: size * 0.4, weight: .semibold))
-            .foregroundStyle(PipDesign.accent)
+            .foregroundStyle(UniMateDesign.accent)
             .frame(width: size, height: size)
-            .background(PipDesign.mist, in: RoundedRectangle(cornerRadius: size * 0.32))
+            .background(UniMateDesign.mist, in: RoundedRectangle(cornerRadius: size * 0.32))
             .accessibilityHidden(true)
     }
 }
@@ -42,7 +42,7 @@ struct TaskGlyph: View {
 struct PlanTag: View {
     let text: String
     let symbol: String
-    var tint: Color = PipDesign.accent
+    var tint: Color = UniMateDesign.accent
 
     var body: some View {
         Label(text, systemImage: symbol)
@@ -73,7 +73,7 @@ struct TaskMetadata: View {
             PlanTag(text: "Due \(due)", symbol: "calendar")
         }
         if let money = item.moneyAtRisk, money > 0 {
-            PlanTag(text: "\(MoneyFormatting.dollars(money)) at risk", symbol: "exclamationmark", tint: PipDesign.warning)
+            PlanTag(text: "\(MoneyFormatting.dollars(money)) at risk", symbol: "exclamationmark", tint: UniMateDesign.warning)
         }
     }
 }
@@ -85,7 +85,7 @@ struct WindowFitView: View {
     var compact = false
 
     private var fits: Bool { used <= available }
-    private var tint: Color { fits ? PipDesign.accent : PipDesign.warning }
+    private var tint: Color { fits ? UniMateDesign.accent : UniMateDesign.warning }
     private var fraction: Double { min(1, max(0, Double(used) / Double(max(1, available)))) }
 
     var body: some View {
@@ -124,11 +124,11 @@ struct PlanDisclosure: View {
 
     var body: some View {
         DisclosureGroup {
-            Text(text).font(.subheadline).foregroundStyle(PipDesign.secondary)
+            Text(text).font(.subheadline).foregroundStyle(UniMateDesign.secondary)
                 .fixedSize(horizontal: false, vertical: true).padding(.vertical, 8)
         } label: {
             Label(title, systemImage: symbol)
-                .font(.subheadline.weight(.medium)).foregroundStyle(PipDesign.ink)
+                .font(.subheadline.weight(.medium)).foregroundStyle(UniMateDesign.ink)
                 .frame(minHeight: 36)
         }
     }

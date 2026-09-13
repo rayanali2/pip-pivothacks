@@ -3,8 +3,8 @@ import UIKit
 
 extension Color {
     /// Neutral grouped surface used for pills, chips and the transcript card.
-    static let pipSurface = PipDesign.mist
-    static let pipField = PipDesign.surface
+    static let uniMateSurface = UniMateDesign.mist
+    static let uniMateField = UniMateDesign.surface
 }
 
 /// "Snowflake" (with snowflake symbol) or "Local fallback".
@@ -21,9 +21,9 @@ struct SourceLabel: View {
         .font(.caption2.weight(.semibold))
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(PipDesign.surface, in: Capsule())
-        .overlay { Capsule().strokeBorder(PipDesign.line) }
-        .foregroundStyle(PipDesign.secondary)
+        .background(UniMateDesign.surface, in: Capsule())
+        .overlay { Capsule().strokeBorder(UniMateDesign.line) }
+        .foregroundStyle(UniMateDesign.secondary)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Source: \(source.label)")
     }
@@ -41,10 +41,10 @@ struct FreeWindowPill: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .font(.footnote.weight(.semibold))
-        .foregroundStyle(PipDesign.accent)
+        .foregroundStyle(UniMateDesign.accent)
         .padding(.horizontal, 11)
         .padding(.vertical, 6)
-        .background(RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous).fill(PipDesign.mist))
+        .background(RoundedRectangle(cornerRadius: UniMateDesign.radiusSmall, style: .continuous).fill(UniMateDesign.mist))
         .accessibilityElement(children: .combine)
     }
 }
@@ -55,9 +55,9 @@ struct FlagPill: View {
 
     private var tint: Color {
         switch flag {
-        case .atRisk: return PipDesign.danger
-        case .balanceGuard: return PipDesign.positive
-        case .unknown: return PipDesign.secondary
+        case .atRisk: return UniMateDesign.danger
+        case .balanceGuard: return UniMateDesign.positive
+        case .unknown: return UniMateDesign.secondary
         }
     }
 
@@ -70,7 +70,7 @@ struct FlagPill: View {
     }
 
     var body: some View {
-        PipPill(text: flag.label, systemImage: symbol, tint: tint)
+        UniMatePill(text: flag.label, systemImage: symbol, tint: tint)
     }
 }
 
@@ -97,8 +97,8 @@ struct PrimaryButtonStyle: ButtonStyle {
                 .padding(.vertical, 13)
                 .padding(.horizontal, 20)
                 .background(
-                    RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous)
-                        .fill(PipDesign.accent)
+                    RoundedRectangle(cornerRadius: UniMateDesign.radiusSmall, style: .continuous)
+                        .fill(UniMateDesign.accent)
                 )
                 .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.5)
                 .scaleEffect(configuration.isPressed ? 0.98 : 1)
@@ -113,11 +113,11 @@ struct ChipButtonStyle: ButtonStyle {
             .font(.footnote.weight(.medium))
             .lineLimit(1)
             .frame(minHeight: 28)
-            .foregroundStyle(PipDesign.ink)
+            .foregroundStyle(UniMateDesign.ink)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Capsule().fill(PipDesign.surface))
-            .overlay { Capsule().strokeBorder(PipDesign.line) }
+            .background(Capsule().fill(UniMateDesign.surface))
+            .overlay { Capsule().strokeBorder(UniMateDesign.line) }
             .opacity(configuration.isPressed ? 0.6 : 1)
     }
 }
@@ -137,7 +137,7 @@ struct HoldToTalkButton: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(PipDesign.accent)
+                .fill(UniMateDesign.accent)
             Image(systemName: isListening ? "waveform" : "mic.fill")
                 .font(.system(size: diameter * 0.36, weight: .semibold))
                 .foregroundStyle(Color.white)
@@ -147,12 +147,12 @@ struct HoldToTalkButton: View {
         .background {
             // Soft halo so the mic reads as the main action; it pulses while listening.
             Circle()
-                .fill(PipDesign.accent.opacity(isListening ? 0.18 : 0.1))
+                .fill(UniMateDesign.accent.opacity(isListening ? 0.18 : 0.1))
                 .padding(-diameter * 0.16)
                 .scaleEffect(isListening && pulse && !reduceMotion ? 1.12 : 1)
         }
         .scaleEffect(isPressed ? 1.08 : 1)
-        .shadow(color: PipDesign.accent.opacity(isPressed ? 0.35 : 0.2), radius: isPressed ? 14 : 8, y: 4)
+        .shadow(color: UniMateDesign.accent.opacity(isPressed ? 0.35 : 0.2), radius: isPressed ? 14 : 8, y: 4)
         .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8), value: isPressed)
         .animation(reduceMotion || !isListening ? .default : .easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
         .onChange(of: isListening, initial: true) { _, listening in
@@ -193,17 +193,17 @@ struct BannerView: View {
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
             Image(systemName: "info.circle.fill")
-                .foregroundStyle(PipDesign.accent)
+                .foregroundStyle(UniMateDesign.accent)
             Text(text)
                 .font(.subheadline)
-                .foregroundStyle(PipDesign.ink)
+                .foregroundStyle(UniMateDesign.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.vertical, 10)
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
                     .frame(width: 44, height: 44)
             }
             .accessibilityLabel("Dismiss")
@@ -211,14 +211,14 @@ struct BannerView: View {
         .padding(.leading, 14)
         .padding(.vertical, 2)
         .background(
-            RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous)
-                .fill(PipDesign.surface)
+            RoundedRectangle(cornerRadius: UniMateDesign.radiusSmall, style: .continuous)
+                .fill(UniMateDesign.surface)
         )
         .overlay {
-            RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous)
-                .strokeBorder(PipDesign.line)
+            RoundedRectangle(cornerRadius: UniMateDesign.radiusSmall, style: .continuous)
+                .strokeBorder(UniMateDesign.line)
         }
-        .shadow(color: PipDesign.ink.opacity(0.08), radius: 12, y: 4)
+        .shadow(color: UniMateDesign.ink.opacity(0.08), radius: 12, y: 4)
         .padding(.horizontal, 16)
         .padding(.top, 8)
     }

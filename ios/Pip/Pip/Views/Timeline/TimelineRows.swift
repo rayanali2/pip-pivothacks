@@ -109,7 +109,7 @@ struct TimelineTickLabel: View {
     var body: some View {
         Text(tick.label)
             .font(.footnote.monospacedDigit())
-            .foregroundStyle(PipDesign.secondary)
+            .foregroundStyle(UniMateDesign.secondary)
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .padding(.trailing, 8)
@@ -131,7 +131,7 @@ struct TimelineGapRow: View {
                 .font(.footnote.monospacedDigit())
             Spacer(minLength: 0)
         }
-        .foregroundStyle(PipDesign.secondary)
+        .foregroundStyle(UniMateDesign.secondary)
         .frame(maxWidth: .infinity, minHeight: gap.height, alignment: .leading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(gap.label)
@@ -142,7 +142,7 @@ struct TimelineChevron: View {
     var body: some View {
         Image(systemName: "chevron.right")
             .font(.caption.weight(.semibold))
-            .foregroundStyle(PipDesign.secondary)
+            .foregroundStyle(UniMateDesign.secondary)
             .padding(.top, 2)
             .accessibilityHidden(true)
     }
@@ -165,7 +165,7 @@ struct TimelineEntryCard: View {
             .overlay {
                 if highlighted {
                     shape
-                        .strokeBorder(PipDesign.accent, lineWidth: 2)
+                        .strokeBorder(UniMateDesign.accent, lineWidth: 2)
                         .modifier(TimelinePulse())
                         .transition(.opacity)
                 }
@@ -188,26 +188,26 @@ struct TimelineEntryCard: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: symbol)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(PipDesign.accent)
+                .foregroundStyle(UniMateDesign.accent)
                 .frame(width: 32, height: 32)
                 .background(iconBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             VStack(alignment: .leading, spacing: 4) {
                 Text(eyebrow)
                     .font(.caption2.weight(.bold))
                     .tracking(0.8)
-                    .foregroundStyle(entry.style == .doNow ? PipDesign.accent : PipDesign.secondary)
+                    .foregroundStyle(entry.style == .doNow ? UniMateDesign.accent : UniMateDesign.secondary)
                 Text(item.title)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(PipDesign.ink)
+                    .foregroundStyle(UniMateDesign.ink)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(entry.timeText)
                     .font(.footnote.monospacedDigit())
-                    .foregroundStyle(entry.style == .doNow ? PipDesign.accent : PipDesign.secondary)
+                    .foregroundStyle(entry.style == .doNow ? UniMateDesign.accent : UniMateDesign.secondary)
                 if entry.style == .fixedBlock, let location = item.location, !location.isEmpty {
                     Label(location, systemImage: "mappin.and.ellipse")
                         .font(.footnote)
-                        .foregroundStyle(PipDesign.secondary)
+                        .foregroundStyle(UniMateDesign.secondary)
                 }
                 if let flag = item.flag {
                     FlagPill(flag: flag)
@@ -224,30 +224,30 @@ struct TimelineEntryCard: View {
         .overlay(alignment: .leading) {
             if entry.style == .doNow {
                 Capsule()
-                    .fill(PipDesign.accent)
+                    .fill(UniMateDesign.accent)
                     .frame(width: 3)
                     .padding(.vertical, 14)
             }
         }
-        .shadow(color: PipDesign.ink.opacity(entry.style == .fixedBlock ? 0 : 0.035), radius: 10, y: 4)
+        .shadow(color: UniMateDesign.ink.opacity(entry.style == .fixedBlock ? 0 : 0.035), radius: 10, y: 4)
     }
 
     private var markerContent: some View {
         HStack(spacing: 12) {
             Image(systemName: symbol)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(PipDesign.accent)
+                .foregroundStyle(UniMateDesign.accent)
                 .frame(width: 32, height: 32)
-                .background(PipDesign.mist, in: Circle())
+                .background(UniMateDesign.mist, in: Circle())
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(PipDesign.ink)
+                    .foregroundStyle(UniMateDesign.ink)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(entry.timeText)
                     .font(.footnote.monospacedDigit())
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
             }
             Spacer(minLength: 8)
             if let flag = item.flag {
@@ -267,26 +267,26 @@ struct TimelineEntryCard: View {
     private var cardBackground: some View {
         switch entry.style {
         case .doNow:
-            shape.fill(PipDesign.surface)
-                .overlay { shape.fill(PipDesign.accent.opacity(0.08)) }
-                .overlay { shape.strokeBorder(PipDesign.accent.opacity(0.45), lineWidth: 1.5) }
+            shape.fill(UniMateDesign.surface)
+                .overlay { shape.fill(UniMateDesign.accent.opacity(0.08)) }
+                .overlay { shape.strokeBorder(UniMateDesign.accent.opacity(0.45), lineWidth: 1.5) }
         case .fixedBlock:
-            shape.fill(PipDesign.mist)
-                .overlay { shape.strokeBorder(PipDesign.line.opacity(0.7)) }
+            shape.fill(UniMateDesign.mist)
+                .overlay { shape.strokeBorder(UniMateDesign.line.opacity(0.7)) }
         case .continuation:
-            shape.fill(PipDesign.surface)
-                .overlay { shape.strokeBorder(PipDesign.accent.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [5, 4])) }
+            shape.fill(UniMateDesign.surface)
+                .overlay { shape.strokeBorder(UniMateDesign.accent.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [5, 4])) }
         case .task, .marker:
-            shape.fill(PipDesign.surface)
-                .overlay { shape.strokeBorder(PipDesign.line) }
+            shape.fill(UniMateDesign.surface)
+                .overlay { shape.strokeBorder(UniMateDesign.line) }
         }
     }
 
     private var iconBackground: Color {
         switch entry.style {
-        case .doNow: return PipDesign.surface
-        case .fixedBlock: return PipDesign.surface.opacity(0.7)
-        case .task, .continuation, .marker: return PipDesign.mist
+        case .doNow: return UniMateDesign.surface
+        case .fixedBlock: return UniMateDesign.surface.opacity(0.7)
+        case .task, .continuation, .marker: return UniMateDesign.mist
         }
     }
 
@@ -393,18 +393,18 @@ struct TimelineTrayCard: View {
                     TimelineChevron()
                 }
             }
-            .foregroundStyle(isAtRisk ? PipDesign.warning : PipDesign.secondary)
+            .foregroundStyle(isAtRisk ? UniMateDesign.warning : UniMateDesign.secondary)
 
             Text(item.title)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(PipDesign.ink)
+                .foregroundStyle(UniMateDesign.ink)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let dueText {
                 Text(dueText)
                     .font(.footnote.monospacedDigit())
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
             }
 
             switch entry.reason {
@@ -416,22 +416,22 @@ struct TimelineTrayCard: View {
             case .needsGap:
                 Text(gapText)
                     .font(.footnote)
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
             }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(PipDesign.surface, in: shape)
+        .background(UniMateDesign.surface, in: shape)
         .overlay { outline }
         .overlay {
             if highlighted {
                 shape
-                    .strokeBorder(PipDesign.accent, lineWidth: 2)
+                    .strokeBorder(UniMateDesign.accent, lineWidth: 2)
                     .modifier(TimelinePulse())
                     .transition(.opacity)
             }
         }
-        .shadow(color: PipDesign.ink.opacity(0.035), radius: 10, y: 4)
+        .shadow(color: UniMateDesign.ink.opacity(0.035), radius: 10, y: 4)
         .contentShape(shape)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
@@ -440,9 +440,9 @@ struct TimelineTrayCard: View {
     @ViewBuilder
     private var outline: some View {
         if isAtRisk {
-            shape.strokeBorder(PipDesign.warning, lineWidth: 1.5)
+            shape.strokeBorder(UniMateDesign.warning, lineWidth: 1.5)
         } else {
-            shape.strokeBorder(PipDesign.secondary.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+            shape.strokeBorder(UniMateDesign.secondary.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
         }
     }
 
@@ -485,8 +485,8 @@ struct TimelineCapacityBars: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            bar(label: "needs \(needed) min", minutes: needed, tint: PipDesign.warning)
-            bar(label: "you have \(available) min", minutes: available, tint: PipDesign.accent)
+            bar(label: "needs \(needed) min", minutes: needed, tint: UniMateDesign.warning)
+            bar(label: "you have \(available) min", minutes: available, tint: UniMateDesign.accent)
         }
         // The card's label already speaks both numbers.
         .accessibilityHidden(true)
@@ -501,14 +501,14 @@ struct TimelineCapacityBars: View {
         return layout {
             Text(label)
                 .font(.footnote.monospacedDigit())
-                .foregroundStyle(PipDesign.secondary)
+                .foregroundStyle(UniMateDesign.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .frame(width: stacked ? nil : labelWidth, alignment: .leading)
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule()
-                        .fill(PipDesign.line.opacity(0.7))
+                        .fill(UniMateDesign.line.opacity(0.7))
                     Capsule()
                         .fill(tint)
                         .frame(width: max(8, proxy.size.width * fraction))

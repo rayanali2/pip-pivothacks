@@ -1,19 +1,19 @@
 import AVFoundation
 import Foundation
 
-/// Thin AVSpeechSynthesizer wrapper. Reports speaking changes and spoken words on the main actor.
-final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
+/// ElevenLabs audio playback with device speech fallback and cancellation.
+final class Speaker: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate {
     private let synthesizer = AVSpeechSynthesizer()
-
-    /// A touch slower than the system default, which sounds rushed for a plan read aloud.
-    static let speechRate: Float = AVSpeechUtteranceDefaultSpeechRate * 0.92
-    static let pitch: Float = 1.0
+    private var audioPlayer: AVAudioPlayer?
+    private var request: Task<Void, Never>?
+    private var generation = UUID()
 
     /// Called on the main actor whenever speech starts (true) or finishes/cancels (false).
     var onSpeakingChanged: (@MainActor (Bool) -> Void)?
-
-    /// Called on the main actor as each word is about to be spoken.
     var onWord: (@MainActor () -> Void)?
+
+    static let speechRate: Float = AVSpeechUtteranceDefaultSpeechRate * 0.92
+    static let pitch: Float = 1.0
 
     override init() {
         super.init()
@@ -21,12 +21,7 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     var isSpeaking: Bool {
-        synthesizer.isSpeaking
-    }
-
-    /// Name of the voice Pip speaks with, e.g. "Ava (Premium)".
-    static var activeVoiceName: String {
-        preferredVoice?.name ?? "System voice"
+        synthesizer.isSpeaking || audioPlayer?.isPlaying == true || request != nil
     }
 
     /// Speaks `text` unless muted (UserDefaults "pip_muted"). Returns whether speech started.
@@ -35,57 +30,83 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !Config.isMuted, !trimmed.isEmpty else { return false }
 
-        if synthesizer.isSpeaking {
-            synthesizer.stopSpeaking(at: .immediate)
+        stop()
+        let token = generation
+        request = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                guard let base = Config.apiBaseURL else { throw URLError(.badURL) }
+                var request = URLRequest(url: base.appendingPathComponent("speech"))
+                request.httpMethod = "POST"
+                request.timeoutInterval = 18
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.httpBody = try JSONEncoder().encode(["text": trimmed])
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard !Task.isCancelled, self.generation == token, !Config.isMuted else { return }
+                guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+                      http.mimeType == "audio/mpeg" else { throw URLError(.badServerResponse) }
+                self.prepareSessionForPlayback()
+                let player = try AVAudioPlayer(data: data)
+                player.delegate = self
+                self.audioPlayer = player
+                guard player.play() else { throw URLError(.cannotDecodeContentData) }
+                self.request = nil
+                self.notify(true)
+                self.notifyWord()
+            } catch {
+                guard !Task.isCancelled, self.generation == token, !Config.isMuted else { return }
+                self.request = nil
+                self.audioPlayer = nil
+                self.speakOnDevice(trimmed)
+            }
         }
+        return true
+    }
+
+    private func speakOnDevice(_ text: String) {
         prepareSessionForPlayback()
 
-        let utterance = AVSpeechUtterance(string: trimmed)
+        let utterance = AVSpeechUtterance(string: text)
         utterance.voice = Self.preferredVoice
         utterance.rate = Self.speechRate
         utterance.pitchMultiplier = Self.pitch
         synthesizer.speak(utterance)
-        return true
     }
 
-    func stop() {
-        if synthesizer.isSpeaking {
-            synthesizer.stopSpeaking(at: .immediate)
-        }
-    }
-
-    // MARK: Voice
-
-    /// Chosen once: the best installed en-US voice.
-    private static let preferredVoice: AVSpeechSynthesisVoice? = bestVoice()
-
-    /// Natural-sounding voices first, when several share the best quality.
-    private static let naturalVoiceNames = [
-        "Ava", "Zoe", "Evan", "Nathan", "Noelle", "Joelle", "Samantha", "Allison", "Susan", "Tom", "Nicky", "Aaron"
-    ]
-
-    /// Premium, then enhanced, then default quality. Novelty and Eloquence voices never qualify.
-    private static func bestVoice() -> AVSpeechSynthesisVoice? {
-        let candidates = AVSpeechSynthesisVoice.speechVoices().filter { voice in
-            let identifier = voice.identifier.lowercased()
-            return voice.language == "en-US"
-                && !identifier.contains("eloquence")
-                && !identifier.contains("speech.synthesis.voice")
-        }
-        let qualities: [AVSpeechSynthesisVoiceQuality] = [.premium, .enhanced, .default]
-        for quality in qualities {
-            let matches = candidates.filter { $0.quality == quality }
-            guard !matches.isEmpty else { continue }
-            for name in naturalVoiceNames {
-                if let voice = matches.first(where: { $0.name.hasPrefix(name) }) {
-                    return voice
-                }
-            }
-            if let voice = matches.sorted(by: { $0.name < $1.name }).first {
-                return voice
+    private static let preferredVoice: AVSpeechSynthesisVoice? = {
+        let names = ["Ava", "Zoe", "Noelle", "Joelle", "Samantha", "Allison"]
+        let voices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language == "en-US" }
+        for quality in [AVSpeechSynthesisVoiceQuality.premium, .enhanced, .default] {
+            let matches = voices.filter { $0.quality == quality }
+            for name in names {
+                if let voice = matches.first(where: { $0.name.hasPrefix(name) }) { return voice }
             }
         }
         return AVSpeechSynthesisVoice(language: "en-US")
+    }()
+
+    func stop() {
+        generation = UUID()
+        request?.cancel()
+        request = nil
+        audioPlayer?.stop()
+        audioPlayer = nil
+        if synthesizer.isSpeaking {
+            synthesizer.stopSpeaking(at: .immediate)
+        }
+        notify(false)
+    }
+
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        guard player === audioPlayer else { return }
+        audioPlayer = nil
+        notify(false)
+    }
+
+    func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+        guard player === audioPlayer else { return }
+        audioPlayer = nil
+        notify(false)
     }
 
     private func prepareSessionForPlayback() {
@@ -119,16 +140,18 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
         willSpeakRangeOfSpeechString characterRange: NSRange,
         utterance: AVSpeechUtterance
     ) {
-        Task { @MainActor [weak self] in
-            self?.onWord?()
-        }
+        notifyWord()
+    }
+
+    private func notifyWord() {
+        Task { @MainActor [weak self] in self?.onWord?() }
     }
 
     private func notify(_ speaking: Bool) {
         Task { @MainActor [weak self] in
             guard let self else { return }
             // A cancel for an old utterance can arrive after a new one started.
-            if !speaking && self.synthesizer.isSpeaking { return }
+            if !speaking && self.isSpeaking { return }
             self.onSpeakingChanged?(speaking)
         }
     }

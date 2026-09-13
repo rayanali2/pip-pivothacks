@@ -2,8 +2,8 @@ import SwiftUI
 import WidgetKit
 
 @main
-struct PipWidgetsBundle: WidgetBundle {
+struct UniMateWidgetsBundle: WidgetBundle {
     var body: some Widget {
-        PipFocusLiveActivity()
+        UniMateFocusLiveActivity()
     }
 }

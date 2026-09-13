@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// Original vector mascot. Presentation state is derived from the existing voice state.
-/// While Pip talks, the beak moves with each spoken word (`AppModel.speechPulse`).
+/// While UniMate talks, the beak moves with each spoken word (`AppModel.speechPulse`).
 struct PenguinView: View {
-    let state: PipState
+    let state: UniMateState
     var size: CGFloat = 180
     var ready = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -17,17 +17,17 @@ struct PenguinView: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(PipDesign.mist)
+                .fill(UniMateDesign.mist)
                 .frame(width: size * 1.18, height: size * 1.18)
             if state == .listening {
-                Circle().stroke(PipDesign.accent, lineWidth: size * 0.025)
+                Circle().stroke(UniMateDesign.accent, lineWidth: size * 0.025)
                     .frame(width: size * 1.18, height: size * 1.18)
                     .scaleEffect(reduceMotion ? 1 : (isUp ? 1.1 : 1))
                     .opacity(isUp ? 0.08 : 0.3)
-                Circle().strokeBorder(PipDesign.accent.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [4, 6]))
+                Circle().strokeBorder(UniMateDesign.accent.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [4, 6]))
                     .frame(width: size * 1.32, height: size * 1.32)
             }
-            Ellipse().fill(PipDesign.ink.opacity(0.09))
+            Ellipse().fill(UniMateDesign.ink.opacity(0.09))
                 .frame(width: size * 0.7, height: size * 0.1)
                 .scaleEffect(state == .speaking && isUp ? 0.9 : 1)
                 .offset(y: size * 0.49)
@@ -48,18 +48,18 @@ struct PenguinView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "ellipsis").font(.headline.bold())
                 }
-                .foregroundStyle(PipDesign.accent).padding(10)
+                .foregroundStyle(UniMateDesign.accent).padding(10)
                 .background(.white, in: Capsule()).offset(x: size * 0.4, y: -size * 0.4)
             } else if ready && state != .listening {
                 Image(systemName: "checkmark")
                     .font(.system(size: size * 0.12, weight: .bold)).foregroundStyle(.white)
-                    .padding(size * 0.08).background(PipDesign.positive, in: Circle())
+                    .padding(size * 0.08).background(UniMateDesign.positive, in: Circle())
                     .offset(x: size * 0.46, y: -size * 0.34)
             }
         }
         .frame(width: size * 1.4, height: size * 1.4)
         .accessibilityElement()
-        .accessibilityLabel("Pip the penguin, \(ready && state == .idle ? "your next step is ready" : state.caption)")
+        .accessibilityLabel("UniMate the penguin, \(ready && state == .idle ? "your next step is ready" : state.caption)")
         // Each loop lives in a task keyed by what it depends on, so SwiftUI cancels it when the
         // state changes or the view disappears. Nothing repeats past its own state.
         .task(id: MotionKey(state: state, reduceMotion: reduceMotion)) { await runMotion() }
@@ -127,12 +127,12 @@ struct PenguinView: View {
     }
 
     private struct Swing: Equatable {
-        var state: PipState
+        var state: UniMateState
         var up: Bool
     }
 
     private struct MotionKey: Equatable {
-        let state: PipState
+        let state: UniMateState
         let reduceMotion: Bool
     }
 }
@@ -167,13 +167,13 @@ private struct PenguinFigure: View {
             flipper.rotationEffect(.degrees(wave), anchor: .top)
                 .rotationEffect(.degrees(ready ? -65 : -24))
                 .offset(x: size * 0.35, y: ready ? -size * 0.1 : size * 0.09)
-            Ellipse().fill(PipDesign.ink)
+            Ellipse().fill(UniMateDesign.ink)
                 .frame(width: size * 0.78, height: size * 0.91)
                 .overlay { Ellipse().strokeBorder(.white, lineWidth: size * 0.025) }
             Ellipse().fill(Color(red: 0.99, green: 0.98, blue: 0.95))
                 .frame(width: size * 0.61, height: size * 0.72).offset(y: size * 0.06)
             // A little dark crown makes the white face read as a penguin, even at small sizes.
-            Ellipse().fill(PipDesign.ink)
+            Ellipse().fill(UniMateDesign.ink)
                 .frame(width: size * 0.13, height: size * 0.12).offset(y: -size * 0.30)
             HStack(spacing: size * 0.19) {
                 eye
@@ -194,9 +194,9 @@ private struct PenguinFigure: View {
             RoundedRectangle(cornerRadius: size * 0.025)
                 .fill(beak).frame(width: size * 0.12, height: size * 0.08)
                 .rotationEffect(.degrees(45)).offset(y: size * 0.015)
-            Capsule().fill(PipDesign.accent.opacity(0.75))
+            Capsule().fill(UniMateDesign.accent.opacity(0.75))
                 .frame(width: size * 0.38, height: size * 0.065).offset(y: size * 0.20)
-            RoundedRectangle(cornerRadius: 3).fill(PipDesign.accent)
+            RoundedRectangle(cornerRadius: 3).fill(UniMateDesign.accent)
                 .frame(width: size * 0.075, height: size * 0.16)
                 .rotationEffect(.degrees(-12)).offset(x: size * 0.12, y: size * 0.25)
         }
@@ -204,11 +204,11 @@ private struct PenguinFigure: View {
     }
 
     private var flipper: some View {
-        Ellipse().fill(PipDesign.ink).frame(width: size * 0.16, height: size * 0.4)
+        Ellipse().fill(UniMateDesign.ink).frame(width: size * 0.16, height: size * 0.4)
             .overlay { Ellipse().strokeBorder(.white, lineWidth: size * 0.018) }
     }
     private var eye: some View {
-        Capsule().fill(PipDesign.ink)
+        Capsule().fill(UniMateDesign.ink)
             .frame(width: size * 0.045, height: size * (blinking ? 0.012 : ready ? 0.045 : 0.07))
     }
     private var blush: some View {
@@ -221,7 +221,7 @@ private struct PenguinFigure: View {
             ForEach(0..<3, id: \.self) { index in
                 Circle()
                     .trim(from: 0.47, to: 0.63)
-                    .stroke(PipDesign.accent, style: StrokeStyle(lineWidth: size * 0.02, lineCap: .round))
+                    .stroke(UniMateDesign.accent, style: StrokeStyle(lineWidth: size * 0.02, lineCap: .round))
                     .frame(width: size * (0.14 + 0.1 * CGFloat(index)), height: size * (0.14 + 0.1 * CGFloat(index)))
                     .opacity((beakOpen ? 0.8 : 0.25) * (1 - Double(index) * 0.3))
                     .animation(.easeOut(duration: 0.3).delay(Double(index) * 0.05), value: beakOpen)

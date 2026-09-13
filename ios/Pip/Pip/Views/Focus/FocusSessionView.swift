@@ -25,8 +25,8 @@ struct FocusSessionView: View {
         VStack(spacing: 0) {
             topBar
             ScrollView {
-                VStack(spacing: PipDesign.gap) {
-                    PenguinView(state: model.pipState == .speaking ? .speaking : .idle, size: 120, ready: isTimeUp)
+                VStack(spacing: UniMateDesign.gap) {
+                    PenguinView(state: model.uniMateState == .speaking ? .speaking : .idle, size: 120, ready: isTimeUp)
                     heading(current)
                     FocusTimerRing(
                         startedAt: current.startedAt,
@@ -44,13 +44,13 @@ struct FocusSessionView: View {
                             .transition(.opacity)
                     }
                 }
-                .padding(.horizontal, PipDesign.page)
+                .padding(.horizontal, UniMateDesign.page)
                 .padding(.top, 4)
                 .padding(.bottom, 28)
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: isTimeUp)
             }
         }
-        .pipScreen()
+        .uniMateScreen()
         .sensoryFeedback(.success, trigger: isTimeUp) { oldValue, newValue in
             !oldValue && newValue
         }
@@ -79,7 +79,7 @@ struct FocusSessionView: View {
         HStack {
             Text("FOCUS")
                 .font(.caption2.weight(.bold)).tracking(1.4)
-                .foregroundStyle(PipDesign.secondary)
+                .foregroundStyle(UniMateDesign.secondary)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 8)
             Button {
@@ -87,27 +87,27 @@ struct FocusSessionView: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(PipDesign.ink)
+                    .foregroundStyle(UniMateDesign.ink)
                     .frame(width: 44, height: 44)
-                    .background(PipDesign.surface, in: Circle())
-                    .overlay { Circle().strokeBorder(PipDesign.line) }
+                    .background(UniMateDesign.surface, in: Circle())
+                    .overlay { Circle().strokeBorder(UniMateDesign.line) }
             }
             .accessibilityLabel("Close focus")
             .accessibilityHint("Stops the timer without marking the task done")
         }
-        .padding(.horizontal, PipDesign.page)
+        .padding(.horizontal, UniMateDesign.page)
         .padding(.top, 8)
     }
 
     private func heading(_ current: FocusSession) -> some View {
         VStack(spacing: 6) {
             Text(current.title)
-                .font(PipDesign.heading)
+                .font(UniMateDesign.heading)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             Text(current.action)
                 .font(.subheadline)
-                .foregroundStyle(PipDesign.secondary)
+                .foregroundStyle(UniMateDesign.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -124,18 +124,18 @@ struct FocusSessionView: View {
         if next != nil || money != nil {
             VStack(alignment: .leading, spacing: 14) {
                 if let next {
-                    contextRow(symbol: "arrow.turn.down.right", tint: PipDesign.accent, title: "Then: \(next)", detail: location)
+                    contextRow(symbol: "arrow.turn.down.right", tint: UniMateDesign.accent, title: "Then: \(next)", detail: location)
                 }
                 if let money {
-                    contextRow(symbol: "dollarsign.circle", tint: PipDesign.warning, title: "\(MoneyFormatting.dollars(money)) on the line", detail: nil)
+                    contextRow(symbol: "dollarsign.circle", tint: UniMateDesign.warning, title: "\(MoneyFormatting.dollars(money)) on the line", detail: nil)
                 }
             }
-            .pipCard()
+            .uniMateCard()
         }
         if liveActivitiesEnabled {
             Label("Also on your Lock Screen", systemImage: "lock.iphone")
                 .font(.caption)
-                .foregroundStyle(PipDesign.secondary)
+                .foregroundStyle(UniMateDesign.secondary)
         }
     }
 
@@ -151,7 +151,7 @@ struct FocusSessionView: View {
                 if let detail {
                     Text(detail)
                         .font(.footnote)
-                        .foregroundStyle(PipDesign.secondary)
+                        .foregroundStyle(UniMateDesign.secondary)
                 }
             }
             Spacer(minLength: 0)
@@ -176,7 +176,7 @@ struct FocusSessionView: View {
                     model.skipFocusToEnd()
                 }
                 .font(.footnote.weight(.medium))
-                .foregroundStyle(PipDesign.secondary)
+                .foregroundStyle(UniMateDesign.secondary)
                 .frame(minHeight: 44)
                 .accessibilityHint("Makes the timer run out in 3 seconds")
             }
@@ -187,11 +187,11 @@ struct FocusSessionView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Time is up", systemImage: "bell")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(PipDesign.accent)
+                .foregroundStyle(UniMateDesign.accent)
                 .accessibilityAddTraits(.isHeader)
-            Text("Finished? Pip will pick your next step.")
+            Text("Finished? UniMate will pick your next step.")
                 .font(.subheadline)
-                .foregroundStyle(PipDesign.secondary)
+                .foregroundStyle(UniMateDesign.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
                 model.finishFocus(done: true)
@@ -209,10 +209,10 @@ struct FocusSessionView: View {
                 }
                 .buttonStyle(FocusSecondaryButtonStyle())
                 .disabled(model.isBusy)
-                .accessibilityHint("Closes the timer and asks Pip what to do instead")
+                .accessibilityHint("Closes the timer and asks UniMate what to do instead")
             }
         }
-        .pipCard(emphasized: true)
+        .uniMateCard(emphasized: true)
     }
 
     private var extendButton: some View {
@@ -277,10 +277,10 @@ private struct FocusTimerRing: View {
 
             ZStack {
                 Circle()
-                    .stroke(PipDesign.line, lineWidth: lineWidth)
+                    .stroke(UniMateDesign.line, lineWidth: lineWidth)
                 Circle()
                     .trim(from: 0, to: fraction)
-                    .stroke(PipDesign.accent, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    .stroke(UniMateDesign.accent, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .animation(reduceMotion ? nil : .linear(duration: 1), value: fraction)
                 VStack(spacing: 6) {
@@ -292,7 +292,7 @@ private struct FocusTimerRing: View {
                     Text(planText)
                         .font(.footnote)
                         .monospacedDigit()
-                        .foregroundStyle(PipDesign.secondary)
+                        .foregroundStyle(UniMateDesign.secondary)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
                         .minimumScaleFactor(0.8)
@@ -347,16 +347,16 @@ private struct FocusSecondaryButtonStyle: ButtonStyle {
         var body: some View {
             configuration.label
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(PipDesign.ink)
+                .foregroundStyle(UniMateDesign.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
-                .background(PipDesign.surface, in: RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous))
+                .background(UniMateDesign.surface, in: RoundedRectangle(cornerRadius: UniMateDesign.radiusSmall, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous)
-                        .strokeBorder(PipDesign.line)
+                    RoundedRectangle(cornerRadius: UniMateDesign.radiusSmall, style: .continuous)
+                        .strokeBorder(UniMateDesign.line)
                 }
                 .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.45)
         }

@@ -66,7 +66,7 @@ struct DoNowStakesStrip: View {
             Text("RULES · \(firedCount) OF \(item.evidence.count) FIRED")
                 .font(.caption2.weight(.bold))
                 .tracking(1)
-                .foregroundStyle(PipDesign.secondary)
+                .foregroundStyle(UniMateDesign.secondary)
                 .accessibilityLabel("\(firedCount) of \(item.evidence.count) rules fired")
             ViewThatFits(in: .horizontal) {
                 chipRow
@@ -93,8 +93,8 @@ struct DoNowStakesStrip: View {
         let isExpanded = expandedRule == index
         let name = Self.shortLabel(for: evidence)
         let border: Color = evidence.fired
-            ? PipDesign.accent.opacity(isExpanded ? 0.6 : 0.2)
-            : (isExpanded ? PipDesign.secondary.opacity(0.6) : PipDesign.line)
+            ? UniMateDesign.accent.opacity(isExpanded ? 0.6 : 0.2)
+            : (isExpanded ? UniMateDesign.secondary.opacity(0.6) : UniMateDesign.line)
         return Button {
             withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                 expandedRule = isExpanded ? nil : index
@@ -109,10 +109,10 @@ struct DoNowStakesStrip: View {
                     .lineLimit(1)
             }
             .font(.caption.weight(.semibold))
-            .foregroundStyle(evidence.fired ? PipDesign.accent : PipDesign.secondary)
+            .foregroundStyle(evidence.fired ? UniMateDesign.accent : UniMateDesign.secondary)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Capsule().fill(evidence.fired ? PipDesign.accent.opacity(0.12) : PipDesign.surface))
+            .background(Capsule().fill(evidence.fired ? UniMateDesign.accent.opacity(0.12) : UniMateDesign.surface))
             .overlay {
                 Capsule().strokeBorder(border, lineWidth: isExpanded ? 1.5 : 1)
             }
@@ -128,9 +128,9 @@ struct DoNowStakesStrip: View {
     private func ruleDetail(_ evidence: RuleEvidence) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: evidence.fired ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(evidence.fired ? PipDesign.accent : PipDesign.secondary)
+                .foregroundStyle(evidence.fired ? UniMateDesign.accent : UniMateDesign.secondary)
             Text(evidence.detail)
-                .foregroundStyle(PipDesign.secondary)
+                .foregroundStyle(UniMateDesign.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .font(.footnote)
@@ -204,7 +204,7 @@ private struct DoNowCountdownLine: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .font(.footnote.weight(.semibold).monospacedDigit())
-        .foregroundStyle(remaining < 2 * 3600 ? PipDesign.warning : PipDesign.secondary)
+        .foregroundStyle(remaining < 2 * 3600 ? UniMateDesign.warning : UniMateDesign.secondary)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(spokenText)
         .accessibilityAddTraits(.updatesFrequently)
@@ -306,7 +306,7 @@ private struct DoNowCostSparkline: View {
                 Text(kindLabel)
                     .font(.caption2)
             }
-            .foregroundStyle(PipDesign.secondary)
+            .foregroundStyle(UniMateDesign.secondary)
 
             Chart {
                 ForEach(points) { point in
@@ -315,20 +315,20 @@ private struct DoNowCostSparkline: View {
                         y: .value("Cost", point.cost)
                     )
                     .interpolationMethod(.monotone)
-                    .foregroundStyle(PipDesign.accent.opacity(0.12))
+                    .foregroundStyle(UniMateDesign.accent.opacity(0.12))
 
                     LineMark(
                         x: .value("Hours", point.hours),
                         y: .value("Cost", point.cost)
                     )
                     .interpolationMethod(.monotone)
-                    .foregroundStyle(PipDesign.accent)
+                    .foregroundStyle(UniMateDesign.accent)
                     .lineStyle(StrokeStyle(lineWidth: 2))
                 }
 
                 if let dueMarker {
                     RuleMark(x: .value("Due", dueMarker))
-                        .foregroundStyle(PipDesign.warning.opacity(0.7))
+                        .foregroundStyle(UniMateDesign.warning.opacity(0.7))
                         .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
                 }
             }
@@ -366,13 +366,13 @@ private struct DoNowStakesPreview: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     Text(item.title)
-                        .font(PipDesign.heading)
+                        .font(UniMateDesign.heading)
                     DoNowStakesStrip(item: item, planNow: plan.reasoning.now)
                 }
-                .pipCard(emphasized: true)
-                .padding(PipDesign.page)
+                .uniMateCard(emphasized: true)
+                .padding(UniMateDesign.page)
             }
-            .pipScreen()
+            .uniMateScreen()
         } else {
             Text("No sample plan")
         }

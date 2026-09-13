@@ -2,7 +2,7 @@
 // BUILD_PLAN part 3: load data, run the SQL pre-rank, call Cortex, validate,
 // insert into PLANS and return the Plan (api/src/types.ts).
 // EXTRA_CONTEXT = {now_local, available_minutes?, cash_available?, question?,
-//                  previous_plan_id?, trigger, skip_llm?}   (skip_llm is a Pip extension)
+//                  previous_plan_id?, trigger, skip_llm?}   (skip_llm is a UniMate extension)
 // ---------------------------------------------------------------------------
 function pipBool(v) { return v === true || v === 1 || String(v).toLowerCase() === 'true'; }
 

@@ -45,6 +45,8 @@ export interface AppConfig {
   demoNow: string | null;
   /** IANA zone used for plan math and the Snowflake session TIMEZONE */
   timezone: string;
+  /** Skip optional wording generation for plain captures; extraction/ranking are unchanged. */
+  fastCapturePlan: boolean;
 }
 
 export type Env = Readonly<Record<string, string | undefined>>;
@@ -109,6 +111,7 @@ export function loadConfig(env: Env): AppConfig {
     logLevel: parseLogLevel(str(env, 'LOG_LEVEL') ?? undefined) ?? 'info',
     demoNow,
     timezone: str(env, 'PIP_TIMEZONE') ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+    fastCapturePlan: bool(env, 'FAST_CAPTURE_PLAN', true),
   };
 }
 

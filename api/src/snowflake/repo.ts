@@ -257,7 +257,7 @@ export function readExtractResult(raw: unknown): ExtractSummary {
 export type BuildPlanBindForm = 'parse_json' | 'string';
 
 /** SQL access for the live backend and the seed script. Every method issues parameterized statements only. */
-export class PipRepo {
+export class UniMateRepo {
   private readonly db: SqlExecutor;
   /** CALL BUILD_PLAN(?, ?, PARSE_JSON(?)) first; switches to a plain JSON-string bind if the account rejects it */
   buildPlanForm: BuildPlanBindForm = 'parse_json';
