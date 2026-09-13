@@ -216,6 +216,13 @@ describe('LiveBackend', () => {
     expect(res.plan.do_now?.task_id).toBe('demo-return-headphones');
     expect(res.tasks).toHaveLength(6);
     expect(res.capture.capture_id).toBe(res.plan.capture_id);
+    expect(res.pipeline.map((s) => [s.engine, s.status])).toEqual([
+      ['Typed', 'ok'],
+      ['Snowflake Cortex · claude-sonnet-4-5', 'ok'],
+      ['Snowflake SQL pre-rank', 'ok'],
+      ['Snowflake Cortex · claude-sonnet-4-5', 'ok'],
+    ]);
+    expect(res.pipeline[1]?.detail).toBe('1 task · 0 constraints');
 
     expect(res.plan.created_at).toMatch(ISO_OFFSET);
     expect(res.plan.reasoning.now).toMatch(ISO_OFFSET);
@@ -267,6 +274,14 @@ describe('LiveBackend', () => {
     expect(res.plan.next?.item_id).toBe(`block:${isoDow(now)}:14:00`);
     expect(res.plan.reasoning.free_window?.label).toBe('47 min free until CHEM 110 Lab, 2:00 PM');
     expect(res.plan.do_now?.evidence).toHaveLength(5);
+    expect(res.pipeline.map((s) => [s.engine, s.status])).toEqual([
+      ['Typed', 'ok'],
+      ['Heuristic parser', 'fallback'],
+      ['Deterministic 5-rule ranker', 'fallback'],
+      ['Templates', 'fallback'],
+    ]);
+    expect(res.pipeline[1]?.detail).toBe('Cortex extraction failed · 3 tasks · 2 constraints');
+    expect(res.pipeline[2]?.detail).toBe('BUILD_PLAN failed · 6 tasks scored · do now: Return headphones');
 
     // heuristic extraction wrote to Snowflake (3 merges + 2 constraints + cash on the profile)
     expect(executor.sqls().filter((s) => s.startsWith('UPDATE PIP.APP.TASKS SET due_at'))).toHaveLength(3);
@@ -353,6 +368,91 @@ describe('LiveBackend', () => {
     expect(executor.find('INSERT INTO PIP.APP.CAPTURES')?.binds.slice(2, 5)).toEqual([res.capture.audio_stage_path, '', 'text']);
     expect(res.plan.plan_id).toBe('sf-plan-latest');
     expect(res.plan.do_now?.evidence).toHaveLength(5);
+    expect(res.pipeline[0]).toMatchObject({ engine: 'Snowflake AI_TRANSCRIBE', status: 'fallback', detail: 'No speech recognized · type instead' });
+    expect(typeof res.pipeline[0]?.ms).toBe('number');
+  });
+
+  it('voice: no audio and no client_transcript -> needs_text, transcribe stage skipped without naming AI_TRANSCRIBE', async () => {
+    const now = demoNow();
+    const stored = asSnowflakeVariant(rankerPlan('sf-plan-latest', null, EMPTY_CONTEXT, 'sql-prerank'));
+    const executor = new FakeExecutor((sql) => {
+      if (sql.startsWith('SELECT') && sql.includes('FROM PIP.APP.PLANS WHERE student_id = ?')) {
+        return [{ PLAN_ID: stored.plan_id, STUDENT_ID: 'demo', CAPTURE_ID: null, MODEL: 'sql-prerank', CREATED_AT: stored.created_at, DO_NOW: stored.do_now, NEXT: stored.next, TODAY: stored.today, CAN_WAIT: stored.can_wait, REASONING: stored.reasoning }];
+      }
+      if (sql.startsWith('SELECT') && sql.includes('FROM PIP.APP.TASKS')) return taskRows(now);
+      return [];
+    });
+    const res = await live(executor).captureVoice({ student_id: 'demo', audio: null, followup_plan_id: null });
+
+    expect(res.needs_text).toBe(true);
+    expect(res.plan.plan_id).toBe('sf-plan-latest');
+    expect(executor.sqls().some((s) => s.startsWith("PUT 'file://") || s.startsWith('SELECT AI_TRANSCRIBE'))).toBe(false);
+    expect(res.pipeline[0]).toMatchObject({ engine: 'Not needed', status: 'skipped', ms: null, detail: 'No audio uploaded · type instead' });
+    expect(res.pipeline.map((s) => s.engine)).not.toContain('Snowflake AI_TRANSCRIBE');
+  });
+
+  it('voice: AI_TRANSCRIBE fails but the app sent client_transcript -> on-device transcript, transcribe stage fallback', async () => {
+    const now = demoNow();
+    const executor = new FakeExecutor((sql) => {
+      if (sql.startsWith("PUT 'file://")) return [{ status: 'UPLOADED' }];
+      if (sql.startsWith('SELECT AI_TRANSCRIBE')) throw new Error('Unsupported audio format');
+      if (sql.startsWith('CALL PIP.APP.EXTRACT_FROM_TRANSCRIPT')) {
+        return [{ EXTRACT_FROM_TRANSCRIPT: { tasks: [], constraints: [], model: null, attempts: 2, error: 'LLM extraction failed: no Cortex' } }];
+      }
+      if (sql.startsWith('CALL PIP.APP.BUILD_PLAN')) return [{ BUILD_PLAN: { error: 'boom: Cortex unavailable' } }];
+      if (sql.startsWith('SELECT') && sql.includes('FROM PIP.APP.TASKS')) return taskRows(now);
+      if (sql.startsWith('SELECT') && sql.includes('FROM PIP.APP.TIMETABLE')) return timetableRows(now);
+      if (sql.startsWith('SELECT') && sql.includes('FROM PIP.APP.PROFILE')) return [profileRow(now)];
+      return [];
+    });
+    const res = await live(executor).captureVoice({
+      student_id: 'demo',
+      audio: { buffer: Buffer.from('not really audio'), originalname: 'capture.m4a', mimetype: 'audio/m4a' },
+      followup_plan_id: null,
+      client_transcript: DEMO_TRANSCRIPT,
+    });
+
+    expect(res.needs_text).toBe(false);
+    expect(res.transcript).toBe(DEMO_TRANSCRIPT);
+    expect(res.capture.source).toBe('voice');
+    expect(res.capture.audio_stage_path).toMatch(/\.m4a$/);
+    expect(executor.find('INSERT INTO PIP.APP.CAPTURES')?.binds.slice(3, 5)).toEqual([DEMO_TRANSCRIPT, 'voice']);
+    expect(res.pipeline[0]).toMatchObject({ engine: 'On-device speech (iOS)', status: 'fallback', detail: 'AI_TRANSCRIBE failed · 36 words' });
+    expect(typeof res.pipeline[0]?.ms).toBe('number');
+    expect(res.plan.do_now?.task_id).toBe('demo-return-headphones');
+
+    // no audio at all, but a transcript: still planned, no needs_text
+    const noAudio = await live(executor).captureVoice({ student_id: 'demo', audio: null, followup_plan_id: null, client_transcript: 'I need groceries.' });
+    expect(noAudio.needs_text).toBe(false);
+    expect(noAudio.pipeline[0]).toMatchObject({ engine: 'On-device speech (iOS)', status: 'fallback', ms: null, detail: 'No audio uploaded · 3 words' });
+  });
+
+  it('rerank preview: TypeScript ranker over Snowflake data, nothing written, plan_id preview-<uuid>', async () => {
+    const now = demoNow();
+    const previous = rankerPlan('sf-plan-base', 'cap-1', EMPTY_CONTEXT, 'claude-sonnet-4-5');
+    const executor = new FakeExecutor((sql) => {
+      if (sql.startsWith('SELECT') && sql.includes('FROM PIP.APP.PLANS WHERE plan_id = ?')) {
+        const v = asSnowflakeVariant(previous);
+        return [
+          { PLAN_ID: v.plan_id, STUDENT_ID: v.student_id, CAPTURE_ID: v.capture_id, MODEL: v.model, CREATED_AT: v.created_at, DO_NOW: v.do_now, NEXT: v.next, TODAY: v.today, CAN_WAIT: v.can_wait, REASONING: v.reasoning },
+        ];
+      }
+      if (sql.startsWith('SELECT') && sql.includes('FROM PIP.APP.TASKS')) return taskRows(now);
+      if (sql.startsWith('SELECT') && sql.includes('FROM PIP.APP.TIMETABLE')) return timetableRows(now);
+      if (sql.startsWith('SELECT') && sql.includes('FROM PIP.APP.PROFILE')) return [profileRow(now)];
+      return [];
+    });
+    const res = await live(executor).rerank({ student_id: 'demo', plan_id: 'sf-plan-base', context: { question: 'I only have 25 minutes' }, preview: true });
+
+    expect(res.plan.plan_id).toMatch(/^preview-[0-9a-f-]{36}$/);
+    expect(res.source).toBe('fallback');
+    expect(res.previous_plan_id).toBe('sf-plan-base');
+    expect(res.plan.do_now?.task_id).toBe('demo-assignment');
+    expect(res.diff.do_now_changed).toBe(true);
+    expect(res.pipeline.map((s) => s.engine)).toEqual(['Not needed', 'Heuristic parser', 'Deterministic 5-rule ranker', 'Templates']);
+    expect(executor.sqls().length).toBeGreaterThan(0);
+    expect(executor.sqls().every((s) => s.startsWith('SELECT'))).toBe(true);
+    expect(executor.find('SELECT constraint_id')?.binds).toEqual(['cap-1']);
   });
 
   it('(e) an executor that never resolves -> falls back within the injected timeout', async () => {

@@ -1,12 +1,12 @@
 {
   "source": "fallback",
   "capture": {
-    "capture_id": "capture-8bdcd9dfa5af",
+    "capture_id": "capture-ff1dad9b2645",
     "student_id": "demo",
     "audio_stage_path": null,
     "transcript": "I have a 2 PM lab. I need to return headphones by 5 PM or lose the refund. My assignment is due tomorrow. I need groceries, and I have $35 until Friday. What should I do?",
     "source": "voice",
-    "created_at": "2026-09-13T11:15:29-04:00"
+    "created_at": "2026-09-13T15:39:25-04:00"
   },
   "transcript": "I have a 2 PM lab. I need to return headphones by 5 PM or lose the refund. My assignment is due tomorrow. I need groceries, and I have $35 until Friday. What should I do?",
   "needs_text": false,
@@ -97,10 +97,10 @@
     }
   ],
   "plan": {
-    "plan_id": "plan-ff78a90bbdf3",
+    "plan_id": "plan-2666dfeff278",
     "student_id": "demo",
-    "capture_id": "capture-8bdcd9dfa5af",
-    "created_at": "2026-09-13T11:15:29-04:00",
+    "capture_id": "capture-ff1dad9b2645",
+    "created_at": "2026-09-13T15:39:25-04:00",
     "model": "deterministic-ranker-v1",
     "do_now": {
       "item_id": "demo-return-headphones",
@@ -829,5 +829,68 @@
     }
   },
   "diff": null,
-  "previous_plan_id": null
+  "previous_plan_id": null,
+  "pipeline": [
+    {
+      "id": "transcribe",
+      "label": "Heard you",
+      "engine": "Demo transcript (mock mode)",
+      "detail": "36 words",
+      "status": "ok",
+      "ms": 0,
+      "chips": []
+    },
+    {
+      "id": "extract",
+      "label": "Pulled out tasks",
+      "engine": "Heuristic parser",
+      "detail": "3 tasks · 2 constraints",
+      "status": "ok",
+      "ms": 3,
+      "chips": [
+        {
+          "kind": "task",
+          "label": "Return headphones for refund · $79 · 5:00 PM"
+        },
+        {
+          "kind": "task",
+          "label": "Finish CS 101 assignment · tomorrow"
+        },
+        {
+          "kind": "task",
+          "label": "Buy groceries within budget"
+        },
+        {
+          "kind": "fixed_block",
+          "label": "Lab 2:00 PM"
+        },
+        {
+          "kind": "cash",
+          "label": "$35 until Fri"
+        },
+        {
+          "kind": "question",
+          "label": "What should I do?"
+        }
+      ]
+    },
+    {
+      "id": "rank",
+      "label": "Ranked against 5 rules",
+      "engine": "Deterministic 5-rule ranker",
+      "detail": "6 tasks scored · do now: Return headphones",
+      "status": "ok",
+      "ms": 1,
+      "chips": []
+    },
+    {
+      "id": "wording",
+      "label": "Wrote your plan",
+      "engine": "Templates",
+      "detail": "7 items + summary",
+      "status": "ok",
+      "ms": 0,
+      "chips": []
+    }
+  ]
 }

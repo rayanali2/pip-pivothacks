@@ -1,12 +1,19 @@
 import AVFoundation
 import Foundation
 
-/// Thin AVSpeechSynthesizer wrapper. Reports speaking changes on the main actor.
+/// Thin AVSpeechSynthesizer wrapper. Reports speaking changes and spoken words on the main actor.
 final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
     private let synthesizer = AVSpeechSynthesizer()
 
+    /// A touch slower than the system default, which sounds rushed for a plan read aloud.
+    static let speechRate: Float = AVSpeechUtteranceDefaultSpeechRate * 0.92
+    static let pitch: Float = 1.0
+
     /// Called on the main actor whenever speech starts (true) or finishes/cancels (false).
     var onSpeakingChanged: (@MainActor (Bool) -> Void)?
+
+    /// Called on the main actor as each word is about to be spoken.
+    var onWord: (@MainActor () -> Void)?
 
     override init() {
         super.init()
@@ -15,6 +22,11 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
 
     var isSpeaking: Bool {
         synthesizer.isSpeaking
+    }
+
+    /// Name of the voice Pip speaks with, e.g. "Ava (Premium)".
+    static var activeVoiceName: String {
+        preferredVoice?.name ?? "System voice"
     }
 
     /// Speaks `text` unless muted (UserDefaults "pip_muted"). Returns whether speech started.
@@ -29,9 +41,9 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
         prepareSessionForPlayback()
 
         let utterance = AVSpeechUtterance(string: trimmed)
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
-        utterance.pitchMultiplier = 1.05
+        utterance.voice = Self.preferredVoice
+        utterance.rate = Self.speechRate
+        utterance.pitchMultiplier = Self.pitch
         synthesizer.speak(utterance)
         return true
     }
@@ -40,6 +52,40 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
+    }
+
+    // MARK: Voice
+
+    /// Chosen once: the best installed en-US voice.
+    private static let preferredVoice: AVSpeechSynthesisVoice? = bestVoice()
+
+    /// Natural-sounding voices first, when several share the best quality.
+    private static let naturalVoiceNames = [
+        "Ava", "Zoe", "Evan", "Nathan", "Noelle", "Joelle", "Samantha", "Allison", "Susan", "Tom", "Nicky", "Aaron"
+    ]
+
+    /// Premium, then enhanced, then default quality. Novelty and Eloquence voices never qualify.
+    private static func bestVoice() -> AVSpeechSynthesisVoice? {
+        let candidates = AVSpeechSynthesisVoice.speechVoices().filter { voice in
+            let identifier = voice.identifier.lowercased()
+            return voice.language == "en-US"
+                && !identifier.contains("eloquence")
+                && !identifier.contains("speech.synthesis.voice")
+        }
+        let qualities: [AVSpeechSynthesisVoiceQuality] = [.premium, .enhanced, .default]
+        for quality in qualities {
+            let matches = candidates.filter { $0.quality == quality }
+            guard !matches.isEmpty else { continue }
+            for name in naturalVoiceNames {
+                if let voice = matches.first(where: { $0.name.hasPrefix(name) }) {
+                    return voice
+                }
+            }
+            if let voice = matches.sorted(by: { $0.name < $1.name }).first {
+                return voice
+            }
+        }
+        return AVSpeechSynthesisVoice(language: "en-US")
     }
 
     private func prepareSessionForPlayback() {
@@ -66,6 +112,16 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
         notify(false)
+    }
+
+    func speechSynthesizer(
+        _ synthesizer: AVSpeechSynthesizer,
+        willSpeakRangeOfSpeechString characterRange: NSRange,
+        utterance: AVSpeechUtterance
+    ) {
+        Task { @MainActor [weak self] in
+            self?.onWord?()
+        }
     }
 
     private func notify(_ speaking: Bool) {

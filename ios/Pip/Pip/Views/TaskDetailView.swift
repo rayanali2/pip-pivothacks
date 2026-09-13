@@ -3,6 +3,8 @@ import SwiftUI
 
 struct TaskDetailView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @ScaledMetric(relativeTo: .body) private var chartHeight: CGFloat = 190
     let item: PlanItem
     let task: PipTask?
     /// reasoning.now of the plan the item came from (scenario clock); nil uses the real clock.
@@ -50,8 +52,11 @@ struct TaskDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                titleBlock.pipCard(emphasized: true)
+            VStack(alignment: .leading, spacing: PipDesign.gap) {
+                titleBlock.pipCard()
+                if item.taskId != nil {
+                    actionsSection
+                }
                 if !facts.isEmpty {
                     factsSection.pipCard()
                 }
@@ -61,11 +66,9 @@ struct TaskDetailView: View {
                 if !item.curve.isEmpty {
                     curveSection.pipCard()
                 }
-                if item.taskId != nil {
-                    actionsSection
-                }
             }
-            .padding(20)
+            .padding(.horizontal, PipDesign.page)
+            .padding(.vertical, 12)
         }
         .pipScreen()
         .navigationTitle(item.title)
@@ -75,21 +78,47 @@ struct TaskDetailView: View {
         }
     }
 
+    // MARK: Title
+
+    private var estimatedMinutes: Int? {
+        task?.estMinutes ?? item.estMinutes
+    }
+
     private var titleBlock: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(item.title)
-                .font(.title2.bold())
+                .font(PipDesign.title)
+                .fixedSize(horizontal: false, vertical: true)
             Text(item.action)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
+            if item.flag != nil || estimatedMinutes != nil {
+                PipFlowLayout {
+                    if let flag = item.flag {
+                        FlagPill(flag: flag)
+                    }
+                    if let minutes = estimatedMinutes {
+                        PipPill(text: "\(minutes) min", systemImage: "timer")
+                    }
+                }
+            }
             Text(item.why)
                 .font(.subheadline)
                 .foregroundStyle(PipDesign.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if let flag = item.flag {
-                FlagPill(flag: flag)
-            }
         }
+    }
+
+    // MARK: Facts
+
+    private var stacksFacts: Bool {
+        typeSize.isAccessibilitySize
+    }
+
+    private var factLayout: AnyLayout {
+        stacksFacts
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
     }
 
     private var factsSection: some View {
@@ -99,11 +128,11 @@ struct TaskDetailView: View {
                     if fact.id != facts.first?.id {
                         Divider()
                     }
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    factLayout {
                         Text(fact.label)
-                            .font(.subheadline)
+                            .font(stacksFacts ? .footnote : .subheadline)
                             .foregroundStyle(PipDesign.secondary)
-                            .frame(width: 110, alignment: .leading)
+                            .frame(width: stacksFacts ? nil : 110, alignment: .leading)
                         Text(fact.value)
                             .font(.subheadline)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -115,58 +144,86 @@ struct TaskDetailView: View {
         }
     }
 
+    // MARK: Evidence
+
     private var evidenceSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Why this comes first")
-                .font(.headline)
+            Label("Why it’s ranked here", systemImage: "checklist")
+                .labelStyle(PipCompactLabelStyle())
+                .pipEyebrow()
+                .accessibilityAddTraits(.isHeader)
             ForEach(Array(item.evidence.enumerated()), id: \.offset) { pair in
                 EvidenceRow(evidence: pair.element)
             }
         }
     }
 
+    // MARK: Curve
+
     private var curveSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Cost of waiting")
-                .font(.headline)
-            Text(curveCaption)
-                .font(.footnote)
-                .foregroundStyle(PipDesign.secondary)
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Cost of waiting", systemImage: "chart.line.uptrend.xyaxis")
+                .labelStyle(PipCompactLabelStyle())
+                .pipEyebrow()
+                .accessibilityAddTraits(.isHeader)
+            if let kind = item.curveKind, kind != .unknown {
+                PipPill(text: "\(kind.label) curve", systemImage: "chart.xyaxis.line", tint: PipDesign.secondary)
+            }
             CostCurveChart(points: item.curve, hoursToDue: hoursToDue)
-                .frame(height: 200)
+                .frame(height: min(chartHeight, 320))
+                .padding(.top, 4)
         }
     }
 
-    private var curveCaption: String {
-        let kind = item.curveKind?.label ?? "Curve"
-        return "\(kind) curve: how much it costs to postpone this by a number of hours."
-    }
+    // MARK: Actions
 
     private var actionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                actionButton("Done", systemImage: "checkmark", kind: .done)
-                actionButton("Defer", systemImage: "clock.arrow.circlepath", kind: .deferTask)
-                actionButton("Drop", systemImage: "xmark", kind: .drop)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) {
+                    actionButtons
+                }
+                VStack(spacing: 10) {
+                    actionButtons
+                }
             }
             if let message = model.actionMessage {
                 Text(message)
                     .font(.footnote)
                     .foregroundStyle(PipDesign.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
+    @ViewBuilder
+    private var actionButtons: some View {
+        actionButton("Done", systemImage: "checkmark", kind: .done)
+        actionButton("Defer", systemImage: "clock.arrow.circlepath", kind: .deferTask)
+        actionButton("Drop", systemImage: "xmark", kind: .drop)
+    }
+
     private func actionButton(_ title: String, systemImage: String, kind: ActionKind) -> some View {
-        Button {
+        let button = Button {
             model.record(kind: kind, item: item)
         } label: {
             Label(title, systemImage: systemImage)
+                .font(.body.weight(.semibold))
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
-        .tint(kind == .drop ? Color.red : Color.accentColor)
+        return styledActionButton(button, kind: kind)
+            .controlSize(.large)
+            .tint(kind == .drop ? PipDesign.danger : PipDesign.accent)
+    }
+
+    /// Done is the primary action; Defer and Drop stay secondary.
+    @ViewBuilder
+    private func styledActionButton<ButtonLabel: View>(_ button: Button<ButtonLabel>, kind: ActionKind) -> some View {
+        if kind == .done {
+            button.buttonStyle(.borderedProminent)
+        } else {
+            button.buttonStyle(.bordered)
+        }
     }
 }
 
@@ -174,21 +231,25 @@ private struct EvidenceRow: View {
     let evidence: RuleEvidence
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             Image(systemName: evidence.fired ? "checkmark.circle.fill" : "circle")
-                .font(.title3)
-                .foregroundStyle(evidence.fired ? Color.accentColor : Color.secondary)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(evidence.fired ? PipDesign.accent : PipDesign.secondary)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(evidence.label)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(evidence.fired ? Color.primary : Color.secondary)
+                    .foregroundStyle(evidence.fired ? PipDesign.ink : PipDesign.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(evidence.detail)
                     .font(.footnote)
                     .foregroundStyle(PipDesign.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
+        .accessibilityValue(evidence.fired ? "Applies" : "Doesn’t apply")
     }
 }
 
@@ -217,18 +278,18 @@ private struct CostCurveChart: View {
                     y: .value("Cost", point.cost)
                 )
                 .interpolationMethod(.monotone)
-                .foregroundStyle(Color.accentColor)
-                .lineStyle(StrokeStyle(lineWidth: 2.5))
+                .foregroundStyle(PipDesign.accent)
+                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
             }
 
             if let dueMarker {
                 RuleMark(x: .value("Due", dueMarker))
-                    .foregroundStyle(Color.red.opacity(0.7))
+                    .foregroundStyle(PipDesign.danger.opacity(0.7))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
                     .annotation(position: .top, alignment: .leading) {
                         Text("Due")
-                            .font(.caption2)
-                            .foregroundStyle(Color.red)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(PipDesign.danger)
                     }
             }
         }
