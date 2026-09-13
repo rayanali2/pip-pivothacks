@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { IsoDateTime } from '../types';
 import { toIsoLocal } from '../clock';
-import { buildContextPlan, type ContextPlan } from '../ranker/context';
+import { buildContextPlan, type ContextPlan, type OverrunInput } from '../ranker/context';
 import { pivot3Fixture } from '../demo/pivot3';
 import { asyncRoute, parseInput } from './util';
 
@@ -38,6 +38,14 @@ export class ContextStore {
     return { plan: structuredClone(plan), replayed: false };
   }
 
+  /** "What if this takes longer?": same frozen snapshot inputs, one named segment changed. Nothing is stored or mutated. */
+  preview(planRequestId: string, overrun: OverrunInput): ContextPlan | null {
+    const entry = this.entries.find((e) => e.request_id === planRequestId);
+    if (!entry) return null;
+    const s = entry.plan.snapshot;
+    return buildContextPlan(pivot3Fixture(), { request_id: s.request_id, revision: s.revision, stated_minutes: s.stated_minutes, overrun });
+  }
+
   recordAction(requestId: string, planRequestId: string): { action: ContextAction; replayed: boolean } | null {
     for (const e of this.entries) {
       const done = e.actions.find((a) => a.request_id === requestId);
@@ -68,6 +76,22 @@ const contextPlanSchema = z.object({
   stated_minutes: z.number().int().min(0).max(1440).nullable().optional(),
 });
 
+const contextPreviewSchema = z.object({
+  plan_request_id: requestId,
+  overrun: z.object({
+    task_id: z.string().trim().min(1).max(128),
+    path_id: z
+      .string()
+      .trim()
+      .max(128)
+      .nullable()
+      .optional()
+      .transform((v) => v ?? null),
+    segment_id: z.string().trim().min(1).max(128),
+    minutes: z.number().int().min(1).max(240),
+  }),
+});
+
 const contextActionSchema = z.object({
   request_id: requestId,
   plan_request_id: requestId,
@@ -83,6 +107,19 @@ export function contextRouter(store: ContextStore): Router {
       const body = parseInput(contextPlanSchema, req.body);
       const { plan, replayed } = store.plan(body.request_id, body.stated_minutes ?? null);
       res.json({ source: 'fallback', replayed, plan });
+    }),
+  );
+
+  router.post(
+    '/context/preview',
+    asyncRoute(async (req, res) => {
+      const body = parseInput(contextPreviewSchema, req.body);
+      const plan = store.preview(body.plan_request_id, body.overrun);
+      if (!plan || !plan.scenario) {
+        res.status(400).json({ source: 'fallback', error: 'unknown plan_request_id, task, path or segment' });
+        return;
+      }
+      res.json({ source: 'fallback', plan });
     }),
   );
 

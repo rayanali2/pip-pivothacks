@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { formatTime, tryParseIsoLocal } from '../src/clock';
-import { buildContextPlan, checkPath, checkSpending, type ContextFixture, type ContextPlan } from '../src/ranker/context';
+import { buildContextPlan, checkPath, checkSpending, overrunScenario, type ContextFixture, type ContextPlan } from '../src/ranker/context';
 import { pivot3Fixture } from '../src/demo/pivot3';
 import { mockService } from './helpers';
 
@@ -124,7 +124,51 @@ describe('Pivot 3: available time is a hard planning constraint', () => {
   });
 });
 
+describe('F4: what if one named segment takes 10 minutes longer', () => {
+  it('+10 min on the 20-minute after-lab travel segment moves completion to 5:25 PM', () => {
+    const f = pivot3Fixture();
+    const s = overrunScenario(f, 48, { task_id: 'return-headphones', path_id: 'after-lab', segment_id: 'campus-to-shop', minutes: 10 });
+    expect(time(s?.base_completes_at)).toBe('5:15 PM');
+    expect(time(s?.completes_at)).toBe('5:25 PM');
+    expect(s?.violations.join(' ')).toContain('25 min after the 5:00 PM cutoff');
+    expect(s?.fits_only_without_overrun).toBe(false);
+    // only the named segment changed; processing is not stretched and no travel is counted twice
+    expect(f.tasks.find((t) => t.id === 'return-headphones')?.paths.find((p) => p.id === 'after-lab')?.segments.map((x) => x.minutes)).toEqual([20, 10]);
+  });
+
+  it('State A return fits only without the overrun, and do_now is unchanged by the preview', () => {
+    const f = pivot3Fixture();
+    const base = plan(48, f);
+    const target = base.overrun_target;
+    expect(target?.segment_id).toBe('home-to-shop');
+    if (!target) throw new Error('missing overrun target');
+    const withScenario = buildContextPlan(f, { request_id: 'test-48', revision: 1, stated_minutes: 48, overrun: { ...target, minutes: 10 } });
+    expect(withScenario.do_now).toEqual(base.do_now);
+    expect(withScenario.snapshot).toEqual(base.snapshot);
+    expect(time(withScenario.scenario?.completes_at)).toBe('1:30 PM');
+    expect(withScenario.scenario?.slack_minutes).toBe(-2);
+    expect(withScenario.scenario?.fits_only_without_overrun).toBe(true);
+    expect(withScenario.scenario?.summary).toContain('fits only without the overrun');
+    expect(withScenario.scenario?.summary).not.toMatch(/%|probab|confiden/i);
+  });
+});
+
 describe('Pivot 3 HTTP: snapshots are persisted, retrievable and idempotent', () => {
+  it('preview never stores a plan or changes history', async () => {
+    const app = createApp(mockService());
+    await request(app).post('/context/plan').send({ request_id: 'req-preview-0001', stated_minutes: 25 });
+    const before = await request(app).get('/context/history');
+    const preview = await request(app)
+      .post('/context/preview')
+      .send({ plan_request_id: 'req-preview-0001', overrun: { task_id: 'cs101-assignment', path_id: null, segment_id: 'first_step', minutes: 10 } });
+    expect(preview.status).toBe(200);
+    expect(preview.body.plan.scenario.violations[0]).toContain('needs 30 min but you have 25');
+    const after = await request(app).get('/context/history');
+    expect(after.body).toEqual(before.body);
+    const bad = await request(app).post('/context/preview').send({ plan_request_id: 'req-preview-0001', overrun: { task_id: 'cs101-assignment', path_id: 'nope', segment_id: 'x', minutes: 10 } });
+    expect(bad.status).toBe(400);
+  });
+
   it('stores State A and State B with different inputs and replays a repeated request id', async () => {
     const app = createApp(mockService());
     const a = await request(app).post('/context/plan').send({ request_id: 'req-state-a-0001', stated_minutes: 48 });

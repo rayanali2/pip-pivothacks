@@ -41,6 +41,7 @@ protocol PipService: AnyObject {
     func contextPlan(requestID: String, statedMinutes: Int?) async throws -> ContextPlanResponse
     func contextAction(requestID: String, planRequestID: String) async throws -> ContextActionResponse
     func contextHistory() async throws -> ContextHistoryResponse
+    func contextPreview(planRequestID: String, overrun: ContextOverrunInput) async throws -> ContextPreviewResponse
 }
 
 @MainActor
@@ -174,6 +175,12 @@ final class RemoteService: PipService {
     func contextHistory() async throws -> ContextHistoryResponse {
         let request = try makeRequest("GET", "/context/history", timeout: Self.shortTimeout)
         return try await send(request, as: ContextHistoryResponse.self)
+    }
+
+    func contextPreview(planRequestID: String, overrun: ContextOverrunInput) async throws -> ContextPreviewResponse {
+        let payload = ContextPreviewRequest(planRequestId: planRequestID, overrun: overrun)
+        let request = try makeJSONRequest("POST", "/context/preview", body: payload, timeout: Self.shortTimeout)
+        return try await send(request, as: ContextPreviewResponse.self)
     }
 
     // MARK: Plumbing

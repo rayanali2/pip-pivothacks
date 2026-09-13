@@ -80,6 +80,9 @@ final class AppModel {
     var isContextLoading = false
     /// snapshot request id whose "Start now" was recorded
     var contextStartedRequestID: String?
+    /// hypothetical "10 minutes longer" result; never applied to the accepted plan
+    var contextScenario: ContextScenario?
+    var contextScenarioRequestID: String?
     /// Only responses for the latest context revision may update the screen or speak.
     @ObservationIgnored private var contextRevision = 0
 
@@ -182,6 +185,8 @@ final class AppModel {
                 withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
                     self.contextPlan = response.plan
                     self.contextStartedRequestID = nil
+                    self.contextScenario = nil
+                    self.contextScenarioRequestID = nil
                 }
                 self.speakContext(response.plan)
                 await self.refreshContextHistory()
@@ -210,6 +215,29 @@ final class AppModel {
                     self.contextStartedRequestID = planRequestID
                 }
                 await self.refreshContextHistory()
+            } catch {
+                self.showError(error)
+            }
+        }
+    }
+
+    /// Recomputes from the same frozen snapshot with one named segment 10 minutes longer. View-only.
+    func previewOverrun() {
+        guard let plan = contextPlan, let target = plan.overrunTarget else { return }
+        let planRequestID = plan.snapshot.requestId
+        let overrun = ContextOverrunInput(taskId: target.taskId, pathId: target.pathId, segmentId: target.segmentId, minutes: 10)
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let response = try await self.call { service in
+                    try await service.contextPreview(planRequestID: planRequestID, overrun: overrun)
+                }
+                guard self.contextPlan?.snapshot.requestId == planRequestID else { return }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    self.contextScenario = response.plan.scenario
+                    self.contextScenarioRequestID = planRequestID
+                }
             } catch {
                 self.showError(error)
             }

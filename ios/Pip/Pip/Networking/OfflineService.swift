@@ -55,6 +55,10 @@ final class OfflineService: PipService {
         ContextHistoryResponse(source: .fallback, entries: [])
     }
 
+    func contextPreview(planRequestID: String, overrun: ContextOverrunInput) async throws -> ContextPreviewResponse {
+        throw PipError.server("Live context planning needs the Pip API.")
+    }
+
     func captureVoice(fileURL: URL, followupPlanID: String?) async throws -> CaptureResponse {
         try? FileManager.default.removeItem(at: fileURL)
         if followupPlanID != nil {

@@ -128,6 +128,23 @@ struct ContextPlanResponse: Decodable {
     let plan: ContextPlan
 }
 
+struct ContextOverrunInput: Encodable {
+    let taskId: String
+    let pathId: String?
+    let segmentId: String
+    let minutes: Int
+}
+
+struct ContextPreviewRequest: Encodable {
+    let planRequestId: String
+    let overrun: ContextOverrunInput
+}
+
+struct ContextPreviewResponse: Decodable {
+    let source: Source
+    let plan: ContextPlan
+}
+
 struct ContextActionRequest: Encodable {
     let requestId: String
     let planRequestId: String

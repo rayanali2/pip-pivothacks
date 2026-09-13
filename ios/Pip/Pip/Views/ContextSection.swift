@@ -148,6 +148,25 @@ struct ContextDoNowCard: View {
                 .buttonStyle(PrimaryButtonStyle())
                 .disabled(isStarted)
                 .accessibilityLabel(isStarted ? "Started \(doNow.label)" : "Start now: \(doNow.label)")
+
+                if let target = plan.overrunTarget {
+                    Button("What if this takes 10 minutes longer?") {
+                        model.previewOverrun()
+                    }
+                    .font(.footnote.weight(.medium))
+                    .accessibilityHint("Checks \(target.label) with 10 extra minutes without changing your plan")
+
+                    if let scenario = model.contextScenario, model.contextScenarioRequestID == plan.snapshot.requestId {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(scenario.summary)
+                                .font(.footnote)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text("Preview only · your plan is unchanged")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             } else {
                 Text("Nothing fits right now")
                     .font(.title2.bold())

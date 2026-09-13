@@ -280,15 +280,17 @@ Seeded by `snowflake/05_seed.sql` and by the mock store:
 | 1 | Problem 7 — Prioritization | Generic user | Voice-first ranker with decay curves, with Snowflake as the brain | None | Problem 7 is prioritization, so Pip turns a spoken, overloaded day into one ranked next action with Snowflake Cortex as the brain. |
 | 2 | User is a first-time independent university student | Generic urgency → practical cost of delay against classes, money, and basic needs | Timetable, budget window, free-window math, basic-needs guard; Today Plan replaces the score | Generic corpus comparison | We learned our user is a first-time independent student, so Pip now plans around classes, money, and practical life errands — not generic task urgency. |
 
-Pivot 3 (template):
+Pivot 3:
 
 | Field | Value |
 |---|---|
-| revealed | |
-| assumption_changed | |
-| response | |
-| cut | |
-| sentence | |
+| revealed | Context must be explicit, live and causal, not just displayed |
+| assumption_changed | Free time was a ranking weight → free time before the next fixed class is a hard filter on do now |
+| response | `available_minutes = (next protected start − arrival buffer) − simulated now`, recomputed per request; full-path checks around protected commitments; cumulative spending in cents with a protected reserve; result state + provenance; `POST /context/plan`, `/context/preview`, `/context/actions`, `GET /context/history`; Today context strip with a Full / 48 / 25 min control |
+| cut | Prep-step durations the student didn't supply, success probabilities, scenario persistence |
+| sentence | We made available time before the next class a hard planning constraint, so Pip changes what it recommends instead of just showing the schedule. |
+
+Pivot 3 demo (fixture `api/src/demo/pivot3.ts`, simulated Monday 12:40 PM, America/Toronto): on Today, switch **Update context** from 48 min to 25 min. At 48 min the do now is the 40-minute return outing (back by 1:20 PM; after Lab it would finish at 5:15 PM, past the 5:00 PM cutoff). At 25 min the outing is rejected for that window and do now becomes the 20-minute assignment start. These plans are computed by the API's TypeScript planner and labelled `local_fallback`, including in live mode. The context planner does not run in Snowflake yet.
 
 Pivot 4 (template):
 
