@@ -20,7 +20,7 @@ var PIP_PRERANK_SQL = [
   '         COALESCE(d.half_life_hours, 72) AS cfg_half_life,',
   '         COALESCE(d.floor_weight, 0.1) AS cfg_floor,',
   '         DATEDIFF(second, p.now_ts, t.due_at) / 3600.0 AS hours_to_due,',
-  '         DATEDIFF(second, t.created_at, p.now_ts) / 3600.0 AS hours_open,',
+  '         GREATEST(0, DATEDIFF(second, t.created_at, p.now_ts) / 3600.0) AS hours_open,',
   '         PIP.APP.PIP_FIRST_STEP_MINUTES(t.category, t.est_minutes) AS first_step',
   '  FROM PIP.APP.TASKS t',
   '  CROSS JOIN params p',
@@ -36,7 +36,8 @@ var PIP_PRERANK_SQL = [
   '    (b.eff_min > 0 AND b.first_step <= b.eff_min) AS r4,',
   "    (b.category IN ('assignment', 'class', 'work') AND b.due_at IS NOT NULL AND b.due_at <= DATEADD(hour, 48, b.now_ts)) AS r5,",
   "    (b.category IN ('meal', 'rest') AND (COALESCE(b.hours_open, 0) >= 36 OR b.defers >= 2)) AS guard_fired,",
-  "    IFF(COALESCE(b.money_at_risk, 0) > 0 AND b.due_at IS NOT NULL, 'cliff', b.cfg_curve) AS curve_kind",
+  "    IFF(COALESCE(b.money_at_risk, 0) > 0 AND b.due_at IS NOT NULL, 'cliff',",
+  "      IFF(b.cfg_curve = 'cliff' AND b.due_at IS NULL, 'linear', b.cfg_curve)) AS curve_kind",
   '  FROM base b',
   ')',
   'SELECT r.task_id AS TASK_ID, r.raw_text AS RAW_TEXT, r.normalized_text AS NORMALIZED_TEXT, r.category AS CATEGORY,',
@@ -44,9 +45,10 @@ var PIP_PRERANK_SQL = [
   '       r.defers::FLOAT AS DEFERS, r.hours_open::FLOAT AS HOURS_OPEN, r.first_step::FLOAT AS FIRST_STEP,',
   '       r.r1 AS R1, r.r2 AS R2, r.r3 AS R3, r.r4 AS R4, r.r5 AS R5, r.guard_fired AS GUARD_FIRED, r.curve_kind AS CURVE_KIND,',
   '       (10000 * IFF(r.r1, 1, 0) + 1000 * IFF(r.r2, 1, 0) + 100 * IFF(r.r3, 1, 0) + 10 * IFF(r.r4, 1, 0) + IFF(r.r5, 1, 0)',
-  '        + ROUND(0.99 * PIP.APP.PIP_DECAY_COST(r.curve_kind, r.cfg_floor, r.cfg_half_life, r.hours_to_due, r.hours_open, r.defers, 2), 4))::FLOAT AS SCORE',
+  '        + COALESCE(ROUND(0.99 * PIP.APP.PIP_DECAY_COST(r.curve_kind, r.cfg_floor, r.cfg_half_life, r.hours_to_due, r.hours_open, r.defers, 2), 4), 0))::FLOAT AS SCORE',
   'FROM ruled r',
-  'ORDER BY SCORE DESC, TASK_ID'
+  // same order as compareEvals in api/src/ranker/rules.ts: score desc, earliest due (undated last), task_id
+  'ORDER BY SCORE DESC, DUE_S ASC NULLS LAST, TASK_ID'
 ].join('\n');
 var PIP_PRERANK_COLS = ['TASK_ID', 'RAW_TEXT', 'NORMALIZED_TEXT', 'CATEGORY', 'DUE_S', 'MONEY', 'EST', 'DEFERS', 'HOURS_OPEN',
   'FIRST_STEP', 'R1', 'R2', 'R3', 'R4', 'R5', 'GUARD_FIRED', 'CURVE_KIND', 'SCORE'];
@@ -219,11 +221,12 @@ function pipBuildPlanMain(studentIdArg, captureIdArg, extraArg) {
 
   // 11. append to PLANS and return the Plan
   var planId = pipUuid();
-  var createdAt = pipNowLocal();
+  var rec = pipNowRecord();
+  var createdAt = rec.short;
   pipExec('INSERT INTO PIP.APP.PLANS (plan_id, student_id, capture_id, do_now, next, today, can_wait, reasoning, model, created_at) ' +
-    "SELECT ?, ?, NULLIF(?, ''), PARSE_JSON(?), PARSE_JSON(?), PARSE_JSON(?), PARSE_JSON(?), PARSE_JSON(?), ?, TO_TIMESTAMP_NTZ(?, " + PIP_TS_FMT + ')',
+    "SELECT ?, ?, NULLIF(?, ''), PARSE_JSON(?), PARSE_JSON(?), PARSE_JSON(?), PARSE_JSON(?), PARSE_JSON(?), ?, TO_TIMESTAMP_NTZ(?, " + PIP_TS_MS_FMT + ')',
     [planId, sid, cid, JSON.stringify(fin.do_now), JSON.stringify(fin.next), JSON.stringify(fin.today),
-      JSON.stringify(fin.can_wait), JSON.stringify(reasoning), model, createdAt]);
+      JSON.stringify(fin.can_wait), JSON.stringify(reasoning), model, rec.full]);
   var plan = {
     plan_id: planId, student_id: sid, capture_id: cid || null, created_at: createdAt, model: model,
     do_now: fin.do_now, next: fin.next, today: fin.today, can_wait: fin.can_wait, reasoning: reasoning

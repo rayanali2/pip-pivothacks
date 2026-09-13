@@ -16,10 +16,11 @@ function pipRecordActionMain(studentId, planId, taskId, kind) {
   }
   var tid = pipTrim(taskId);
   var actionId = pipUuid();
-  var created = pipNowLocal();
+  var rec = pipNowRecord();
+  var created = rec.short;
   pipExec('INSERT INTO PIP.APP.ACTIONS (action_id, student_id, plan_id, task_id, kind, created_at) ' +
-    "SELECT ?, ?, ?, NULLIF(?, ''), ?, TO_TIMESTAMP_NTZ(?, " + PIP_TS_FMT + ')',
-    [actionId, sid, pid, tid, k, created]);
+    "SELECT ?, ?, ?, NULLIF(?, ''), ?, TO_TIMESTAMP_NTZ(?, " + PIP_TS_MS_FMT + ')',
+    [actionId, sid, pid, tid, k, rec.full]);
   if (tid) {
     if (k === 'done') {
       pipExec("UPDATE PIP.APP.TASKS SET status = 'done' WHERE task_id = ? AND student_id = ?", [tid, sid]);

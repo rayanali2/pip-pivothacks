@@ -159,25 +159,31 @@ $$
 $$;
 
 -- Relative cost (0..1) of postponing a task by T hours (CONTRACT section 4 curves).
--- HOURS_TO_DUE is NULL for undated tasks (cliff then falls back to linear).
+-- Mirrors api/src/ranker/decay.ts: HOURS_TO_DUE is NULL for undated tasks (cliff then
+-- falls back to linear), HOURS_OPEN is clamped at 0, a non-positive half-life counts
+-- as 1 h, and the result is clamped to 0..1. Single SQL expression (UDF body rule).
 CREATE OR REPLACE FUNCTION PIP.APP.PIP_DECAY_COST(
   CURVE VARCHAR, FLOOR_WEIGHT FLOAT, HALF_LIFE_HOURS FLOAT,
   HOURS_TO_DUE FLOAT, HOURS_OPEN FLOAT, DEFER_COUNT FLOAT, T FLOAT)
 RETURNS FLOAT
 AS
 $$
-  CASE
-    WHEN CURVE = 'cliff' AND HOURS_TO_DUE IS NOT NULL THEN
-      IFF(T >= HOURS_TO_DUE, 1.0, FLOOR_WEIGHT + (0.5 - FLOOR_WEIGHT) * DIV0(T, HOURS_TO_DUE))
-    WHEN CURVE = 'daily_reset' THEN
-      FLOOR_WEIGHT + (1 - FLOOR_WEIGHT) * (MOD(COALESCE(HOURS_OPEN, 0) + T, 24) / 24)
-    WHEN CURVE = 'rising_floor' THEN
-      LEAST(1.0, FLOOR_WEIGHT + DIV0(COALESCE(HOURS_OPEN, 0) + T, 2 * HALF_LIFE_HOURS))
-    WHEN CURVE = 'defer_multiplier' THEN
-      LEAST(1.0, (FLOOR_WEIGHT + DIV0(T, 2 * HALF_LIFE_HOURS)) * (1 + 0.5 * COALESCE(DEFER_COUNT, 0)))
-    ELSE
-      LEAST(1.0, FLOOR_WEIGHT + DIV0(T, 2 * HALF_LIFE_HOURS))
-  END
+  GREATEST(0.0, LEAST(1.0,
+    CASE
+      WHEN CURVE = 'cliff' AND HOURS_TO_DUE IS NOT NULL THEN
+        IFF(HOURS_TO_DUE <= 0 OR T >= HOURS_TO_DUE, 1.0,
+            FLOOR_WEIGHT + (0.5 - FLOOR_WEIGHT) * DIV0(T, HOURS_TO_DUE))
+      WHEN CURVE = 'daily_reset' THEN
+        FLOOR_WEIGHT + (1 - FLOOR_WEIGHT) * (MOD(GREATEST(COALESCE(HOURS_OPEN, 0), 0) + T, 24) / 24)
+      WHEN CURVE = 'rising_floor' THEN
+        FLOOR_WEIGHT + DIV0(GREATEST(COALESCE(HOURS_OPEN, 0), 0) + T,
+                            2 * IFF(HALF_LIFE_HOURS > 0, HALF_LIFE_HOURS, 1))
+      WHEN CURVE = 'defer_multiplier' THEN
+        (FLOOR_WEIGHT + DIV0(T, 2 * IFF(HALF_LIFE_HOURS > 0, HALF_LIFE_HOURS, 1)))
+          * (1 + 0.5 * COALESCE(DEFER_COUNT, 0))
+      ELSE
+        FLOOR_WEIGHT + DIV0(T, 2 * IFF(HALF_LIFE_HOURS > 0, HALF_LIFE_HOURS, 1))
+    END))
 $$;
 
 -- TIMESTAMP_NTZ -> '2:00 PM'
@@ -262,6 +268,14 @@ function pipUuid() { return String(pipScalar('SELECT UUID_STRING()', [])); }
 function pipNowLocal() {
   return String(pipScalar('SELECT TO_VARCHAR(CURRENT_TIMESTAMP()::TIMESTAMP_NTZ, ' + PIP_TS_FMT + ')', []));
 }
+// Record timestamp (created_at of plans, actions, constraints). Stored with milliseconds so
+// rows written within the same second still order correctly (V_PLAN_HISTORY, history);
+// returned to the API without fractional seconds.
+var PIP_TS_MS_FMT = "'YYYY-MM-DD\"T\"HH24:MI:SS.FF3'";
+function pipNowRecord() {
+  var full = String(pipScalar('SELECT TO_VARCHAR(CURRENT_TIMESTAMP()::TIMESTAMP_NTZ, ' + PIP_TS_MS_FMT + ')', []));
+  return { full: full, short: full.substring(0, 19) };
+}
 
 // ----- time -----------------------------------------------------------------
 // 'YYYY-MM-DDTHH:MI[:SS]' (or with a space) -> naive ms, else null
@@ -277,11 +291,21 @@ function pipParseDate(s) {
   if (!m) { return null; }
   return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
 }
-// 'H:MM' / 'HH:MM[:SS]' -> minutes of day, else null
+// 'H:MM' / 'HH:MM[:SS]' / '2 PM' / '2:30 p.m.' -> minutes of day, else null
+// (a bare hour without AM/PM, e.g. '14', is rejected as ambiguous)
 function pipParseHm(s) {
-  var m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(pipTrim(s));
+  var t = pipTrim(s).toLowerCase().replace(/\./g, '');
+  var m = /^(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*(am|pm)?$/.exec(t);
   if (!m) { return null; }
-  var h = Number(m[1]); var mi = Number(m[2]);
+  var h = Number(m[1]);
+  var mi = Number(m[2] || 0);
+  if (m[3]) {
+    if (h < 1 || h > 12) { return null; }
+    if (m[3] === 'pm' && h !== 12) { h += 12; }
+    if (m[3] === 'am' && h === 12) { h = 0; }
+  } else if (!m[2]) {
+    return null;
+  }
   if (h > 23 || mi > 59) { return null; }
   return h * 60 + mi;
 }
@@ -398,6 +422,8 @@ function pipCompleteJson(prompt) {
   for (var k = 1; k <= 2; k++) {
     var r = pipComplete(p);
     errors = errors.concat(r.errors);
+    // every function/model failed: walking the whole chain again cannot help (the retry is for bad JSON)
+    if (r.text === null) { break; }
     if (r.text !== null) {
       var obj = pipExtractJson(r.text);
       if (obj) { return { obj: obj, fn: r.fn, model: r.model, attempts: k, errors: errors }; }
@@ -504,7 +530,7 @@ function pipExtractPrompt(transcript, nowStr, openTasks, profile) {
     '- Now is ' + nowStr + ' (' + PIP_DAY_LONG[new Date(nowMs).getUTCDay()] + '). Today is ' + pipFmtDate(today) + '; tomorrow is ' + pipFmtDate(today + 86400000) + '.',
     '- A weekday name means the next such day strictly after today: ' + days.join(', ') + '.',
     '- Write every deadline as local time "YYYY-MM-DDTHH:MI:SS". A bare time such as "5 PM" means today at 17:00:00. "Due tomorrow" without a time means tomorrow at 23:59:00. No deadline mentioned means null.',
-    '- money_at_risk is the dollars lost if the deadline is missed (refund, fee, fine), otherwise null. est_minutes is a realistic whole-minute estimate, or null.',
+    '- money_at_risk is the dollars lost if the deadline is missed (refund, fee, fine), otherwise null. est_minutes is a realistic whole-minute estimate, or null. For an existing task (existing_task_id set) est_minutes is null unless the student says how long it takes.',
     '- A class, lab, lecture, shift or appointment at a fixed time is NOT a task. Output it as a constraint {"kind":"fixed_block","value":{"title":"...","starts_at":"HH:MM","ends_at":"HH:MM or null","location":"... or null"}} with 24-hour times.',
     '- "$X until <day>" is a constraint {"kind":"cash","value":{"amount":X,"until":"YYYY-MM-DD"}}.',
     '- "I only have N minutes" is a constraint {"kind":"time_window","value":{"minutes":N}}; half an hour = 30, an hour = 60.',
@@ -576,8 +602,8 @@ function pipExtractMain(captureId) {
     if (targetId) {
       pipExec('UPDATE PIP.APP.TASKS SET ' +
         'due_at = COALESCE(TRY_TO_TIMESTAMP_NTZ(NULLIF(?, \'\'), ' + PIP_TS_FMT + '), due_at), ' +
-        'money_at_risk = COALESCE(TRY_TO_NUMBER(NULLIF(?, \'\'), 10, 2), money_at_risk), ' +
-        'est_minutes = COALESCE(TRY_TO_NUMBER(NULLIF(?, \'\')), est_minutes), ' +
+        'money_at_risk = COALESCE(TRY_CAST(NULLIF(?, \'\') AS NUMBER(10,2)), money_at_risk), ' +
+        'est_minutes = COALESCE(est_minutes, TRY_CAST(NULLIF(?, \'\') AS NUMBER(6,0))), ' +
         "capture_id = ?, status = 'open' " +
         'WHERE task_id = ? AND student_id = ?',
         [due || '', money, est, String(captureId), targetId, studentId]);
@@ -586,7 +612,7 @@ function pipExtractMain(captureId) {
       pipExec('INSERT INTO PIP.APP.TASKS (task_id, student_id, capture_id, raw_text, normalized_text, category, due_at, ' +
         'money_at_risk, est_minutes, status, defer_count, created_at) ' +
         'SELECT ?, ?, ?, ?, ?, ?, TRY_TO_TIMESTAMP_NTZ(NULLIF(?, \'\'), ' + PIP_TS_FMT + '), ' +
-        "TRY_TO_NUMBER(NULLIF(?, ''), 10, 2), TRY_TO_NUMBER(NULLIF(?, '')), 'open', 0, CURRENT_TIMESTAMP()::TIMESTAMP_NTZ",
+        "TRY_CAST(NULLIF(?, '') AS NUMBER(10,2)), TRY_CAST(NULLIF(?, '') AS NUMBER(6,0)), 'open', 0, CURRENT_TIMESTAMP()::TIMESTAMP_NTZ",
         [targetId, studentId, String(captureId), raw, norm, category, due || '', money, est]);
     }
     if (!pipIn(touched, targetId)) { touched.push(targetId); }
@@ -598,13 +624,14 @@ function pipExtractMain(captureId) {
     var cc = pipCleanConstraint(rawCons[c]);
     if (!cc) { continue; }
     var cid = pipUuid();
-    var created = pipNowLocal();
+    var rec = pipNowRecord();
+    var created = rec.short;
     pipExec('INSERT INTO PIP.APP.CONSTRAINTS (constraint_id, capture_id, kind, value, created_at) ' +
-      'SELECT ?, ?, ?, PARSE_JSON(?), TO_TIMESTAMP_NTZ(?, ' + PIP_TS_FMT + ')',
-      [cid, String(captureId), cc.kind, JSON.stringify(cc.value), created]);
+      'SELECT ?, ?, ?, PARSE_JSON(?), TO_TIMESTAMP_NTZ(?, ' + PIP_TS_MS_FMT + ')',
+      [cid, String(captureId), cc.kind, JSON.stringify(cc.value), rec.full]);
     if (cc.kind === 'cash') {
       pipExec('MERGE INTO PIP.APP.PROFILE p ' +
-        'USING (SELECT ? AS sid, TRY_TO_NUMBER(?, 10, 2) AS cash, TRY_TO_DATE(NULLIF(?, \'\'), \'YYYY-MM-DD\') AS until_d) s ' +
+        'USING (SELECT ? AS sid, TRY_CAST(? AS NUMBER(10,2)) AS cash, TRY_TO_DATE(NULLIF(?, \'\'), \'YYYY-MM-DD\') AS until_d) s ' +
         'ON p.student_id = s.sid ' +
         'WHEN MATCHED THEN UPDATE SET cash_available = s.cash, budget_until = COALESCE(s.until_d, p.budget_until), ' +
         'updated_at = CURRENT_TIMESTAMP()::TIMESTAMP_NTZ ' +
@@ -702,6 +729,14 @@ function pipUuid() { return String(pipScalar('SELECT UUID_STRING()', [])); }
 function pipNowLocal() {
   return String(pipScalar('SELECT TO_VARCHAR(CURRENT_TIMESTAMP()::TIMESTAMP_NTZ, ' + PIP_TS_FMT + ')', []));
 }
+// Record timestamp (created_at of plans, actions, constraints). Stored with milliseconds so
+// rows written within the same second still order correctly (V_PLAN_HISTORY, history);
+// returned to the API without fractional seconds.
+var PIP_TS_MS_FMT = "'YYYY-MM-DD\"T\"HH24:MI:SS.FF3'";
+function pipNowRecord() {
+  var full = String(pipScalar('SELECT TO_VARCHAR(CURRENT_TIMESTAMP()::TIMESTAMP_NTZ, ' + PIP_TS_MS_FMT + ')', []));
+  return { full: full, short: full.substring(0, 19) };
+}
 
 // ----- time -----------------------------------------------------------------
 // 'YYYY-MM-DDTHH:MI[:SS]' (or with a space) -> naive ms, else null
@@ -717,11 +752,21 @@ function pipParseDate(s) {
   if (!m) { return null; }
   return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
 }
-// 'H:MM' / 'HH:MM[:SS]' -> minutes of day, else null
+// 'H:MM' / 'HH:MM[:SS]' / '2 PM' / '2:30 p.m.' -> minutes of day, else null
+// (a bare hour without AM/PM, e.g. '14', is rejected as ambiguous)
 function pipParseHm(s) {
-  var m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(pipTrim(s));
+  var t = pipTrim(s).toLowerCase().replace(/\./g, '');
+  var m = /^(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*(am|pm)?$/.exec(t);
   if (!m) { return null; }
-  var h = Number(m[1]); var mi = Number(m[2]);
+  var h = Number(m[1]);
+  var mi = Number(m[2] || 0);
+  if (m[3]) {
+    if (h < 1 || h > 12) { return null; }
+    if (m[3] === 'pm' && h !== 12) { h += 12; }
+    if (m[3] === 'am' && h === 12) { h = 0; }
+  } else if (!m[2]) {
+    return null;
+  }
   if (h > 23 || mi > 59) { return null; }
   return h * 60 + mi;
 }
@@ -838,6 +883,8 @@ function pipCompleteJson(prompt) {
   for (var k = 1; k <= 2; k++) {
     var r = pipComplete(p);
     errors = errors.concat(r.errors);
+    // every function/model failed: walking the whole chain again cannot help (the retry is for bad JSON)
+    if (r.text === null) { break; }
     if (r.text !== null) {
       var obj = pipExtractJson(r.text);
       if (obj) { return { obj: obj, fn: r.fn, model: r.model, attempts: k, errors: errors }; }
@@ -881,7 +928,8 @@ function pipLoadTask(taskId) {
 // ===== plan_core.js =====
 // ---------------------------------------------------------------------------
 // BUILD_PLAN part 1: free window, plan items and the deterministic skeleton plan
-// (CONTRACT section 4). Pure functions over the state object S built in plan_proc.js.
+// (CONTRACT section 4; api/src/ranker/plan.ts is the reference implementation).
+// Pure functions over the state object S built in plan_proc.js.
 //
 // S = { student_id, capture_id, now_ms, now_str, day_ms, now_min, dow,
 //       blocks: [{title, start, end, location}]  (minutes of day, sorted by start),
@@ -910,6 +958,7 @@ function pipStableSort(arr, cmp) {
   return out;
 }
 
+// ws = window start (minutes of day, may be fractional when it is "now"); ws_ms = the same as naive ms.
 function pipFreeWindow(nowMs, dayMs, blocks) {
   var nowMin = (nowMs - dayMs) / 60000;
   var ws = nowMin;
@@ -923,11 +972,16 @@ function pipFreeWindow(nowMs, dayMs, blocks) {
   var endMin = next ? next.start : PIP_DAY_END_MIN;
   var minutes = Math.max(0, Math.floor(endMin - ws + 1e-9));
   var wsMs = (ws === nowMin) ? nowMs : dayMs + Math.round(ws * 60000);
-  var label = next
-    ? minutes + ' min free until ' + next.title + ', ' + pipClock(dayMs + next.start * 60000)
-    : Math.floor(minutes / 60) + ' h ' + (minutes % 60) + ' min free today';
+  var label;
+  if (next) {
+    label = minutes + ' min free until ' + next.title + ', ' + pipClock(dayMs + next.start * 60000);
+  } else if (minutes >= 60) {
+    label = Math.floor(minutes / 60) + ' h ' + (minutes % 60) + ' min free today';
+  } else {
+    label = minutes + ' min free today';
+  }
   return {
-    ws: ws, end_min: endMin, minutes: minutes, next: next, label: label,
+    ws: ws, ws_ms: wsMs, end_min: endMin, minutes: minutes, next: next, label: label,
     json: {
       starts_at: pipFmtTs(wsMs),
       ends_at: pipFmtTs(dayMs + endMin * 60000),
@@ -999,14 +1053,17 @@ function pipDoNowWhy(S, r) {
   if (r.r3) { return 'It covers a basic need, and ' + fit + '.'; }
   return 'Nothing more urgent is open, and ' + fit + '.';
 }
+// "Return headphones for refund needs ~35 min, you have 25 before CHEM 110 Lab, due 5:00 PM during
+//  CHEM 110 Lab — $79 at risk unless you find 10 more minutes."  (CONTRACT section 5 warning)
 function pipAtRiskText(S, r) {
   var nb = S.fw.next;
-  var need = r.first_step - Math.max(0, S.eff);
+  var have = Math.max(0, S.eff);
+  var need = r.first_step - have;
   var when = '';
-  if (nb) { when = (r.due_ms > S.day_ms + nb.start * 60000) ? ' during ' + nb.title : ' before ' + nb.title; }
-  var loss = (r.money !== null && r.money > 0) ? pipMoney(r.money) + ' at risk' : 'the deadline passes';
-  return 'Needs ~' + r.first_step + ' min but you have ' + Math.max(0, S.eff) + (nb ? ' before ' + nb.title : '') +
-    ', and it is due ' + pipClock(r.due_ms) + when + ' — ' + loss + ' unless you find ' + need + ' more minutes.';
+  if (nb && r.due_ms !== null) { when = (r.due_ms > S.day_ms + nb.start * 60000) ? ' during ' + nb.title : ' before ' + nb.title; }
+  var loss = (r.money !== null && r.money > 0) ? pipMoney(r.money) + ' at risk' : 'the deadline is at risk';
+  return r.title + ' needs ~' + r.first_step + ' min, you have ' + have + (nb ? ' before ' + nb.title : ' free now') +
+    (r.due_ms !== null ? ', due ' + pipClock(r.due_ms) + when : '') + ' — ' + loss + ' unless you find ' + need + ' more minutes.';
 }
 function pipGroceryWhy(S) {
   var m = S.money;
@@ -1029,9 +1086,13 @@ function pipCanWaitWhy(S, r) {
   parts.push(r.defer_count > 0 ? 'deferred ' + pipPlural(r.defer_count, 'time') + ' so far' : 'not deferred yet');
   return parts.join(', ') + '.';
 }
-function pipGuardSentence(S, r) {
-  return r.title + ': open ' + Math.round(r.hours_open) + ' h and deferred ' + pipPlural(r.defer_count, 'time') +
-    ', so it stays on tonight\'s plan at ' + pipMinClock(S, S.bed_min) + '.';
+// atMin: minutes of day the item is planned at (bedtime or a slot), or null when it has no slot
+function pipGuardSentence(S, r, atMin) {
+  var tail;
+  if (atMin === null) { tail = ', so it stays on today\'s plan.'; }
+  else if (atMin === S.bed_min) { tail = ', so it stays on tonight\'s plan at ' + pipMinClock(S, atMin) + '.'; }
+  else { tail = ', so it stays on today\'s plan at ' + pipMinClock(S, atMin) + '.'; }
+  return r.title + ': open ' + Math.round(r.hours_open) + ' h and deferred ' + pipPlural(r.defer_count, 'time') + tail;
 }
 
 // ----- skeleton ------------------------------------------------------------------------
@@ -1056,8 +1117,10 @@ function pipBuildSkeleton(S) {
     var d = pipTaskItem(dn);
     d.action = pipDoNowAction(S, dn);
     d.why = pipDoNowWhy(S, dn);
-    d.starts_at = S.now_str;
-    d.ends_at = dn.fits ? pipFmtTs(S.now_ms + dn.first_step * 60000) : null;
+    // do_now happens in the free window: it starts at the window start (now, or the end of
+    // the block the student is in right now)
+    d.starts_at = pipFmtTs(S.fw.ws_ms);
+    d.ends_at = dn.fits ? pipFmtTs(S.fw.ws_ms + dn.first_step * 60000) : null;
     if (dn.at_risk) { skel.warnings.push({ task_id: dn.task_id, text: pipAtRiskText(S, dn) }); }
     skel.do_now = d;
     skel.itemsById[dn.task_id] = d;
@@ -1089,14 +1152,17 @@ function pipBuildSkeleton(S) {
     }
   }
 
-  // buckets
-  var atRisk = [], dated = [], undated = [], restGuard = [], wait = [];
+  // buckets: at_risk first; rest tasks at bedtime; tasks with R1/R2/R3/R5 or the guard are
+  // slotted (dated by due, then undated by score); everything else can wait.
+  // Balance-guard meal items are slotted like other tasks (plan.ts group 1/2), only rest
+  // tasks go to bedtime.
+  var atRisk = [], dated = [], undated = [], bedtime = [], wait = [];
   for (i = 0; i < rows.length; i++) {
     var r = rows[i];
     if (r === dn) { continue; }
     if (r.at_risk) { atRisk.push(r); }
-    else if (r.guard || r.category === 'rest') { restGuard.push(r); }
-    else if (r.r1 || r.r2 || r.r3 || r.r5) { if (r.due_ms !== null) { dated.push(r); } else { undated.push(r); } }
+    else if (r.category === 'rest') { bedtime.push(r); }
+    else if (r.r1 || r.r2 || r.r3 || r.r5 || r.guard) { if (r.due_ms !== null) { dated.push(r); } else { undated.push(r); } }
     else { wait.push(r); }
   }
   var datedEntries = [];
@@ -1104,7 +1170,7 @@ function pipBuildSkeleton(S) {
   for (i = 0; i < dated.length; i++) { datedEntries.push({ row: dated[i], cont: false }); }
   for (i = 0; i < undated.length; i++) { undatedEntries.push({ row: undated[i], cont: false }); }
   // do_now continuation session (assignment/work with more work than the first step)
-  if (dn && dn.fits && pipIn(['assignment', 'work'], dn.category) && dn.est !== null && dn.est > dn.first_step) {
+  if (dn && pipIn(['assignment', 'work'], dn.category) && dn.est !== null && dn.est > dn.first_step) {
     if (dn.due_ms !== null) { datedEntries.push({ row: dn, cont: true }); } else { undatedEntries.unshift({ row: dn, cont: true }); }
   }
   datedEntries = pipStableSort(datedEntries, function (a, b) {
@@ -1118,8 +1184,9 @@ function pipBuildSkeleton(S) {
   for (i = 0; i < S.blocks.length; i++) { if (nb && S.blocks[i].start > nb.start) { later.push(S.blocks[i]); } }
   var cursor;
   if (nb) { cursor = nb.end + 15; }
-  else { cursor = Math.ceil(S.now_min) + (dn && dn.fits ? dn.first_step : 0) + 15; }
-  function place(session) {
+  else { cursor = Math.ceil(S.fw.ws) + (dn && dn.fits ? dn.first_step : 0) + 15; }
+  // first slot at or after the cursor that does not overlap a later fixed block (does not move the cursor)
+  function findSlot(session) {
     var s = cursor;
     var moved = true;
     var loops = 0;
@@ -1130,7 +1197,6 @@ function pipBuildSkeleton(S) {
       }
     }
     if (s + session > 24 * 60) { return null; }
-    cursor = s + session + 15;
     return { start: s, end: s + session };
   }
 
@@ -1149,8 +1215,18 @@ function pipBuildSkeleton(S) {
     var it = pipTaskItem(sr);
     var remaining = en.cont ? (sr.est - sr.first_step) : (sr.est !== null ? sr.est : sr.first_step);
     var session = Math.max(5, Math.min(remaining, 90));
-    var slot = place(session);
-    if (slot) { it.starts_at = pipMinTs(S, slot.start); it.ends_at = pipMinTs(S, slot.end); }
+    var slot = findSlot(session);
+    var missedAt = null;
+    // a dated task whose next open slot starts at or after its deadline gets no slot (plan.ts missedSlot)
+    if (slot && !en.cont && sr.due_ms !== null && S.day_ms + slot.start * 60000 >= sr.due_ms) {
+      missedAt = slot.start;
+      slot = null;
+    }
+    if (slot) {
+      cursor = slot.end + 15;
+      it.starts_at = pipMinTs(S, slot.start);
+      it.ends_at = pipMinTs(S, slot.end);
+    }
     var at = slot ? pipMinClock(S, slot.start) : null;
     if (en.cont) {
       it.item_id = sr.task_id + '#cont';
@@ -1167,7 +1243,14 @@ function pipBuildSkeleton(S) {
       skel.today.push(it);
       continue;
     }
-    if (pipIsGrocery(sr)) {
+    if (missedAt !== null) {
+      var dueDesc = pipDueDesc(sr.due_ms, S.now_ms);
+      it.action = 'Squeeze in ' + sr.title + ' (~' + session + ' min) ' + pipBy(dueDesc);
+      it.why = 'It is due ' + dueDesc + ', before the next open slot at ' + pipMinClock(S, missedAt) +
+        ', so it needs a gap you make yourself.';
+      skel.warnings.push({ task_id: sr.task_id, text: sr.title + ' is due ' + dueDesc + ', before your next open slot at ' +
+        pipMinClock(S, missedAt) + '.' });
+    } else if (pipIsGrocery(sr)) {
       it.action = 'Buy groceries with a ' + pipMoney(S.money.cap) + ' cap (~' + session + ' min)';
       it.why = pipGroceryWhy(S);
     } else if (sr.due_ms !== null) {
@@ -1178,15 +1261,25 @@ function pipBuildSkeleton(S) {
       it.action = 'Do: ' + sr.title + ' (~' + session + ' min)';
       it.why = 'It covers a basic need today' + (at ? ', so ' + session + ' min are set aside at ' + at + '.' : '.');
     }
+    if (sr.guard) {
+      if (missedAt === null) {
+        it.why = sr.title + ' has been open ' + Math.round(sr.hours_open) + ' h and put off ' + pipPlural(sr.defer_count, 'time') +
+          ', so Pip keeps it on today\'s plan' + (at ? ' at ' + at : '') + '.';
+      }
+      skel.balance_guard.push(pipGuardSentence(S, sr, slot ? slot.start : null));
+    }
     skel.today.push(it);
   }
   for (i = 0; i < later.length; i++) {
     skel.today.push(pipBlockItem(S, later[i], later[i].title + ' is fixed from ' + pipMinClock(S, later[i].start) +
       ' to ' + pipMinClock(S, later[i].end) + ', so nothing else is planned then.'));
   }
-  restGuard = pipStableSort(restGuard, function (a, b) { return b.score - a.score; });
-  for (i = 0; i < restGuard.length; i++) {
-    var g = restGuard[i];
+  bedtime = pipStableSort(bedtime, function (a, b) {
+    if (a.guard !== b.guard) { return a.guard ? -1 : 1; }
+    return b.score - a.score;
+  });
+  for (i = 0; i < bedtime.length; i++) {
+    var g = bedtime[i];
     var gi = pipTaskItem(g);
     var bed = pipMinClock(S, S.bed_min);
     gi.starts_at = pipMinTs(S, S.bed_min);
@@ -1195,7 +1288,7 @@ function pipBuildSkeleton(S) {
     if (g.guard) {
       gi.why = g.title + ' has been open ' + Math.round(g.hours_open) + ' h and put off ' + pipPlural(g.defer_count, 'time') +
         ', so Pip protects it at ' + bed + ' tonight.';
-      skel.balance_guard.push(pipGuardSentence(S, g));
+      skel.balance_guard.push(pipGuardSentence(S, g, S.bed_min));
     } else {
       gi.why = 'Rest keeps tomorrow workable, so it starts at ' + bed + ' tonight.';
     }
@@ -1460,7 +1553,7 @@ var PIP_PRERANK_SQL = [
   '         COALESCE(d.half_life_hours, 72) AS cfg_half_life,',
   '         COALESCE(d.floor_weight, 0.1) AS cfg_floor,',
   '         DATEDIFF(second, p.now_ts, t.due_at) / 3600.0 AS hours_to_due,',
-  '         DATEDIFF(second, t.created_at, p.now_ts) / 3600.0 AS hours_open,',
+  '         GREATEST(0, DATEDIFF(second, t.created_at, p.now_ts) / 3600.0) AS hours_open,',
   '         PIP.APP.PIP_FIRST_STEP_MINUTES(t.category, t.est_minutes) AS first_step',
   '  FROM PIP.APP.TASKS t',
   '  CROSS JOIN params p',
@@ -1476,7 +1569,8 @@ var PIP_PRERANK_SQL = [
   '    (b.eff_min > 0 AND b.first_step <= b.eff_min) AS r4,',
   "    (b.category IN ('assignment', 'class', 'work') AND b.due_at IS NOT NULL AND b.due_at <= DATEADD(hour, 48, b.now_ts)) AS r5,",
   "    (b.category IN ('meal', 'rest') AND (COALESCE(b.hours_open, 0) >= 36 OR b.defers >= 2)) AS guard_fired,",
-  "    IFF(COALESCE(b.money_at_risk, 0) > 0 AND b.due_at IS NOT NULL, 'cliff', b.cfg_curve) AS curve_kind",
+  "    IFF(COALESCE(b.money_at_risk, 0) > 0 AND b.due_at IS NOT NULL, 'cliff',",
+  "      IFF(b.cfg_curve = 'cliff' AND b.due_at IS NULL, 'linear', b.cfg_curve)) AS curve_kind",
   '  FROM base b',
   ')',
   'SELECT r.task_id AS TASK_ID, r.raw_text AS RAW_TEXT, r.normalized_text AS NORMALIZED_TEXT, r.category AS CATEGORY,',
@@ -1484,9 +1578,10 @@ var PIP_PRERANK_SQL = [
   '       r.defers::FLOAT AS DEFERS, r.hours_open::FLOAT AS HOURS_OPEN, r.first_step::FLOAT AS FIRST_STEP,',
   '       r.r1 AS R1, r.r2 AS R2, r.r3 AS R3, r.r4 AS R4, r.r5 AS R5, r.guard_fired AS GUARD_FIRED, r.curve_kind AS CURVE_KIND,',
   '       (10000 * IFF(r.r1, 1, 0) + 1000 * IFF(r.r2, 1, 0) + 100 * IFF(r.r3, 1, 0) + 10 * IFF(r.r4, 1, 0) + IFF(r.r5, 1, 0)',
-  '        + ROUND(0.99 * PIP.APP.PIP_DECAY_COST(r.curve_kind, r.cfg_floor, r.cfg_half_life, r.hours_to_due, r.hours_open, r.defers, 2), 4))::FLOAT AS SCORE',
+  '        + COALESCE(ROUND(0.99 * PIP.APP.PIP_DECAY_COST(r.curve_kind, r.cfg_floor, r.cfg_half_life, r.hours_to_due, r.hours_open, r.defers, 2), 4), 0))::FLOAT AS SCORE',
   'FROM ruled r',
-  'ORDER BY SCORE DESC, TASK_ID'
+  // same order as compareEvals in api/src/ranker/rules.ts: score desc, earliest due (undated last), task_id
+  'ORDER BY SCORE DESC, DUE_S ASC NULLS LAST, TASK_ID'
 ].join('\n');
 var PIP_PRERANK_COLS = ['TASK_ID', 'RAW_TEXT', 'NORMALIZED_TEXT', 'CATEGORY', 'DUE_S', 'MONEY', 'EST', 'DEFERS', 'HOURS_OPEN',
   'FIRST_STEP', 'R1', 'R2', 'R3', 'R4', 'R5', 'GUARD_FIRED', 'CURVE_KIND', 'SCORE'];
@@ -1659,11 +1754,12 @@ function pipBuildPlanMain(studentIdArg, captureIdArg, extraArg) {
 
   // 11. append to PLANS and return the Plan
   var planId = pipUuid();
-  var createdAt = pipNowLocal();
+  var rec = pipNowRecord();
+  var createdAt = rec.short;
   pipExec('INSERT INTO PIP.APP.PLANS (plan_id, student_id, capture_id, do_now, next, today, can_wait, reasoning, model, created_at) ' +
-    "SELECT ?, ?, NULLIF(?, ''), PARSE_JSON(?), PARSE_JSON(?), PARSE_JSON(?), PARSE_JSON(?), PARSE_JSON(?), ?, TO_TIMESTAMP_NTZ(?, " + PIP_TS_FMT + ')',
+    "SELECT ?, ?, NULLIF(?, ''), PARSE_JSON(?), PARSE_JSON(?), PARSE_JSON(?), PARSE_JSON(?), PARSE_JSON(?), ?, TO_TIMESTAMP_NTZ(?, " + PIP_TS_MS_FMT + ')',
     [planId, sid, cid, JSON.stringify(fin.do_now), JSON.stringify(fin.next), JSON.stringify(fin.today),
-      JSON.stringify(fin.can_wait), JSON.stringify(reasoning), model, createdAt]);
+      JSON.stringify(fin.can_wait), JSON.stringify(reasoning), model, rec.full]);
   var plan = {
     plan_id: planId, student_id: sid, capture_id: cid || null, created_at: createdAt, model: model,
     do_now: fin.do_now, next: fin.next, today: fin.today, can_wait: fin.can_wait, reasoning: reasoning
@@ -1751,6 +1847,14 @@ function pipUuid() { return String(pipScalar('SELECT UUID_STRING()', [])); }
 function pipNowLocal() {
   return String(pipScalar('SELECT TO_VARCHAR(CURRENT_TIMESTAMP()::TIMESTAMP_NTZ, ' + PIP_TS_FMT + ')', []));
 }
+// Record timestamp (created_at of plans, actions, constraints). Stored with milliseconds so
+// rows written within the same second still order correctly (V_PLAN_HISTORY, history);
+// returned to the API without fractional seconds.
+var PIP_TS_MS_FMT = "'YYYY-MM-DD\"T\"HH24:MI:SS.FF3'";
+function pipNowRecord() {
+  var full = String(pipScalar('SELECT TO_VARCHAR(CURRENT_TIMESTAMP()::TIMESTAMP_NTZ, ' + PIP_TS_MS_FMT + ')', []));
+  return { full: full, short: full.substring(0, 19) };
+}
 
 // ----- time -----------------------------------------------------------------
 // 'YYYY-MM-DDTHH:MI[:SS]' (or with a space) -> naive ms, else null
@@ -1766,11 +1870,21 @@ function pipParseDate(s) {
   if (!m) { return null; }
   return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
 }
-// 'H:MM' / 'HH:MM[:SS]' -> minutes of day, else null
+// 'H:MM' / 'HH:MM[:SS]' / '2 PM' / '2:30 p.m.' -> minutes of day, else null
+// (a bare hour without AM/PM, e.g. '14', is rejected as ambiguous)
 function pipParseHm(s) {
-  var m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(pipTrim(s));
+  var t = pipTrim(s).toLowerCase().replace(/\./g, '');
+  var m = /^(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*(am|pm)?$/.exec(t);
   if (!m) { return null; }
-  var h = Number(m[1]); var mi = Number(m[2]);
+  var h = Number(m[1]);
+  var mi = Number(m[2] || 0);
+  if (m[3]) {
+    if (h < 1 || h > 12) { return null; }
+    if (m[3] === 'pm' && h !== 12) { h += 12; }
+    if (m[3] === 'am' && h === 12) { h = 0; }
+  } else if (!m[2]) {
+    return null;
+  }
   if (h > 23 || mi > 59) { return null; }
   return h * 60 + mi;
 }
@@ -1887,6 +2001,8 @@ function pipCompleteJson(prompt) {
   for (var k = 1; k <= 2; k++) {
     var r = pipComplete(p);
     errors = errors.concat(r.errors);
+    // every function/model failed: walking the whole chain again cannot help (the retry is for bad JSON)
+    if (r.text === null) { break; }
     if (r.text !== null) {
       var obj = pipExtractJson(r.text);
       if (obj) { return { obj: obj, fn: r.fn, model: r.model, attempts: k, errors: errors }; }
@@ -1946,10 +2062,11 @@ function pipRecordActionMain(studentId, planId, taskId, kind) {
   }
   var tid = pipTrim(taskId);
   var actionId = pipUuid();
-  var created = pipNowLocal();
+  var rec = pipNowRecord();
+  var created = rec.short;
   pipExec('INSERT INTO PIP.APP.ACTIONS (action_id, student_id, plan_id, task_id, kind, created_at) ' +
-    "SELECT ?, ?, ?, NULLIF(?, ''), ?, TO_TIMESTAMP_NTZ(?, " + PIP_TS_FMT + ')',
-    [actionId, sid, pid, tid, k, created]);
+    "SELECT ?, ?, ?, NULLIF(?, ''), ?, TO_TIMESTAMP_NTZ(?, " + PIP_TS_MS_FMT + ')',
+    [actionId, sid, pid, tid, k, rec.full]);
   if (tid) {
     if (k === 'done') {
       pipExec("UPDATE PIP.APP.TASKS SET status = 'done' WHERE task_id = ? AND student_id = ?", [tid, sid]);

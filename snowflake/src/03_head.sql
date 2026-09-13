@@ -159,25 +159,31 @@ $$
 $$;
 
 -- Relative cost (0..1) of postponing a task by T hours (CONTRACT section 4 curves).
--- HOURS_TO_DUE is NULL for undated tasks (cliff then falls back to linear).
+-- Mirrors api/src/ranker/decay.ts: HOURS_TO_DUE is NULL for undated tasks (cliff then
+-- falls back to linear), HOURS_OPEN is clamped at 0, a non-positive half-life counts
+-- as 1 h, and the result is clamped to 0..1. Single SQL expression (UDF body rule).
 CREATE OR REPLACE FUNCTION PIP.APP.PIP_DECAY_COST(
   CURVE VARCHAR, FLOOR_WEIGHT FLOAT, HALF_LIFE_HOURS FLOAT,
   HOURS_TO_DUE FLOAT, HOURS_OPEN FLOAT, DEFER_COUNT FLOAT, T FLOAT)
 RETURNS FLOAT
 AS
 $$
-  CASE
-    WHEN CURVE = 'cliff' AND HOURS_TO_DUE IS NOT NULL THEN
-      IFF(T >= HOURS_TO_DUE, 1.0, FLOOR_WEIGHT + (0.5 - FLOOR_WEIGHT) * DIV0(T, HOURS_TO_DUE))
-    WHEN CURVE = 'daily_reset' THEN
-      FLOOR_WEIGHT + (1 - FLOOR_WEIGHT) * (MOD(COALESCE(HOURS_OPEN, 0) + T, 24) / 24)
-    WHEN CURVE = 'rising_floor' THEN
-      LEAST(1.0, FLOOR_WEIGHT + DIV0(COALESCE(HOURS_OPEN, 0) + T, 2 * HALF_LIFE_HOURS))
-    WHEN CURVE = 'defer_multiplier' THEN
-      LEAST(1.0, (FLOOR_WEIGHT + DIV0(T, 2 * HALF_LIFE_HOURS)) * (1 + 0.5 * COALESCE(DEFER_COUNT, 0)))
-    ELSE
-      LEAST(1.0, FLOOR_WEIGHT + DIV0(T, 2 * HALF_LIFE_HOURS))
-  END
+  GREATEST(0.0, LEAST(1.0,
+    CASE
+      WHEN CURVE = 'cliff' AND HOURS_TO_DUE IS NOT NULL THEN
+        IFF(HOURS_TO_DUE <= 0 OR T >= HOURS_TO_DUE, 1.0,
+            FLOOR_WEIGHT + (0.5 - FLOOR_WEIGHT) * DIV0(T, HOURS_TO_DUE))
+      WHEN CURVE = 'daily_reset' THEN
+        FLOOR_WEIGHT + (1 - FLOOR_WEIGHT) * (MOD(GREATEST(COALESCE(HOURS_OPEN, 0), 0) + T, 24) / 24)
+      WHEN CURVE = 'rising_floor' THEN
+        FLOOR_WEIGHT + DIV0(GREATEST(COALESCE(HOURS_OPEN, 0), 0) + T,
+                            2 * IFF(HALF_LIFE_HOURS > 0, HALF_LIFE_HOURS, 1))
+      WHEN CURVE = 'defer_multiplier' THEN
+        (FLOOR_WEIGHT + DIV0(T, 2 * IFF(HALF_LIFE_HOURS > 0, HALF_LIFE_HOURS, 1)))
+          * (1 + 0.5 * COALESCE(DEFER_COUNT, 0))
+      ELSE
+        FLOOR_WEIGHT + DIV0(T, 2 * IFF(HALF_LIFE_HOURS > 0, HALF_LIFE_HOURS, 1))
+    END))
 $$;
 
 -- TIMESTAMP_NTZ -> '2:00 PM'

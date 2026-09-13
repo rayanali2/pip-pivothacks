@@ -22,7 +22,9 @@ FROM PIP.APP.TIMETABLE tt
 WHERE tt.day_of_week = DAYOFWEEKISO(CURRENT_DATE());
 
 -- Free gaps from now until 23:59 today: before each remaining block, and after the
--- last one. Students with no remaining blocks get a single window.
+-- last one. Students with no remaining blocks today get a single window.
+-- prev_end_ts is the latest end among the earlier blocks (running MAX, then LAG), so
+-- overlapping and back-to-back blocks never produce a gap.
 CREATE OR REPLACE VIEW PIP.APP.V_FREE_WINDOWS AS
 WITH clock AS (
   SELECT
@@ -35,21 +37,38 @@ remaining AS (
   CROSS JOIN clock c
   WHERE b.ends_ts > c.now_ts
 ),
-ordered AS (
+running AS (
   SELECT
     r.student_id,
     r.title,
     r.starts_ts,
     r.ends_ts,
     MAX(r.ends_ts) OVER (
-      PARTITION BY r.student_id ORDER BY r.starts_ts, r.ends_ts
-      ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS prev_end_ts
+      PARTITION BY r.student_id ORDER BY r.starts_ts, r.ends_ts, r.title
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_end_ts
   FROM remaining r
+),
+ordered AS (
+  SELECT
+    u.student_id,
+    u.title,
+    u.starts_ts,
+    u.ends_ts,
+    LAG(u.running_end_ts) OVER (
+      PARTITION BY u.student_id ORDER BY u.starts_ts, u.ends_ts, u.title) AS prev_end_ts
+  FROM running u
 ),
 last_blocks AS (
   SELECT r.student_id, MAX(r.ends_ts) AS last_end_ts
   FROM remaining r
   GROUP BY r.student_id
+),
+known_students AS (
+  SELECT student_id FROM PIP.APP.STUDENTS
+  UNION
+  SELECT student_id FROM PIP.APP.TIMETABLE
+  UNION
+  SELECT student_id FROM PIP.APP.PROFILE
 ),
 gaps AS (
   SELECT
@@ -73,7 +92,7 @@ gaps AS (
     c.now_ts AS window_start,
     c.day_end_ts AS window_end,
     CAST(NULL AS VARCHAR) AS next_block_title
-  FROM PIP.APP.STUDENTS s
+  FROM known_students s
   CROSS JOIN clock c
   WHERE NOT EXISTS (SELECT 1 FROM remaining r WHERE r.student_id = s.student_id)
 )

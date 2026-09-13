@@ -33,7 +33,7 @@ Merge rules, in order:
 2. Otherwise, a task with the same category and `JAROWINKLER_SIMILARITY(LOWER(normalized_text)) >= 80` is updated.
 3. Otherwise a new task is inserted.
 
-An update fills `due_at`, `money_at_risk` and `est_minutes` only when the new value is non-null. It also sets `capture_id` and `status='open'`. Constraints are inserted. A `cash` constraint also MERGEs `PROFILE.cash_available` and `budget_until`.
+An update fills `due_at` and `money_at_risk` only when the new value is non-null. `est_minutes` is filled only when the task has no estimate yet (the stored estimate wins, as in the TypeScript extractor, so an LLM guess cannot change the demo's 35-min return). It also sets `capture_id` and `status='open'`. Constraints are inserted. A `cash` constraint also MERGEs `PROFILE.cash_available` and `budget_until`.
 
 Returns:
 ```json
@@ -101,6 +101,16 @@ Semantics chosen where CONTRACT was open:
 - A timetable/constraint block with the same start minute is deduplicated.
 - Precedence: `EXTRA_CONTEXT.available_minutes` over a capture `time_window`. `EXTRA_CONTEXT.cash_available` over a capture `cash` constraint, over PROFILE.
 - Slot sessions are at least 5 minutes long. Slots that would pass midnight get null times.
+- Aligned with `api/src/ranker/plan.ts` (review pass; no shape change):
+  - `do_now.starts_at` is the free window's start: now, or the end of the block the student is in right now. With no next block, slotting starts 15 min after do_now counted from that window start, so nothing is slotted inside the current block.
+  - Only `rest` tasks go to bedtime. A balance-guard `meal` task is slotted like any other today task, keeps `flag:'balance_guard'`, and its sentence cites its slot time.
+  - A dated task whose next open slot starts at or after its deadline gets `starts_at`/`ends_at` null and a `reasoning.warnings` entry ("… is due …, before your next open slot at …").
+  - A `#cont` item is added for an assignment/work do_now with `est_minutes > first_step` even when the first step does not fit.
+  - Pre-rank order is score desc, then earliest `due_at` (undated last), then task_id. `hours_open` is clamped at 0, and a `cliff` category with no due date reports `curve_kind:'linear'`.
+  - The at_risk warning starts with the task title: "Return headphones for refund needs ~35 min, you have 25 before CHEM 110 Lab, due 5:00 PM during CHEM 110 Lab — $79 at risk unless you find 10 more minutes."
+  - `free_window.label` without a next block is "3 h 59 min free today", or "39 min free today" under an hour.
+  - When every Cortex function/model fails, the chain is walked once (not twice), so `cortex_errors` lists each attempt once.
+- `created_at` of plans, actions and constraints is stored with milliseconds so same-second rows order correctly. Returned strings, and `TO_VARCHAR(col, 'YYYY-MM-DD"T"HH24:MI:SS')`, stay without fractional seconds.
 
 ### RECORD_ACTION(STUDENT_ID VARCHAR, PLAN_ID VARCHAR, TASK_ID VARCHAR, KIND VARCHAR) RETURNS VARIANT
 

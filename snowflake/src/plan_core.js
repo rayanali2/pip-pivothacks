@@ -1,6 +1,7 @@
 // ---------------------------------------------------------------------------
 // BUILD_PLAN part 1: free window, plan items and the deterministic skeleton plan
-// (CONTRACT section 4). Pure functions over the state object S built in plan_proc.js.
+// (CONTRACT section 4; api/src/ranker/plan.ts is the reference implementation).
+// Pure functions over the state object S built in plan_proc.js.
 //
 // S = { student_id, capture_id, now_ms, now_str, day_ms, now_min, dow,
 //       blocks: [{title, start, end, location}]  (minutes of day, sorted by start),
@@ -29,6 +30,7 @@ function pipStableSort(arr, cmp) {
   return out;
 }
 
+// ws = window start (minutes of day, may be fractional when it is "now"); ws_ms = the same as naive ms.
 function pipFreeWindow(nowMs, dayMs, blocks) {
   var nowMin = (nowMs - dayMs) / 60000;
   var ws = nowMin;
@@ -42,11 +44,16 @@ function pipFreeWindow(nowMs, dayMs, blocks) {
   var endMin = next ? next.start : PIP_DAY_END_MIN;
   var minutes = Math.max(0, Math.floor(endMin - ws + 1e-9));
   var wsMs = (ws === nowMin) ? nowMs : dayMs + Math.round(ws * 60000);
-  var label = next
-    ? minutes + ' min free until ' + next.title + ', ' + pipClock(dayMs + next.start * 60000)
-    : Math.floor(minutes / 60) + ' h ' + (minutes % 60) + ' min free today';
+  var label;
+  if (next) {
+    label = minutes + ' min free until ' + next.title + ', ' + pipClock(dayMs + next.start * 60000);
+  } else if (minutes >= 60) {
+    label = Math.floor(minutes / 60) + ' h ' + (minutes % 60) + ' min free today';
+  } else {
+    label = minutes + ' min free today';
+  }
   return {
-    ws: ws, end_min: endMin, minutes: minutes, next: next, label: label,
+    ws: ws, ws_ms: wsMs, end_min: endMin, minutes: minutes, next: next, label: label,
     json: {
       starts_at: pipFmtTs(wsMs),
       ends_at: pipFmtTs(dayMs + endMin * 60000),
@@ -118,14 +125,17 @@ function pipDoNowWhy(S, r) {
   if (r.r3) { return 'It covers a basic need, and ' + fit + '.'; }
   return 'Nothing more urgent is open, and ' + fit + '.';
 }
+// "Return headphones for refund needs ~35 min, you have 25 before CHEM 110 Lab, due 5:00 PM during
+//  CHEM 110 Lab — $79 at risk unless you find 10 more minutes."  (CONTRACT section 5 warning)
 function pipAtRiskText(S, r) {
   var nb = S.fw.next;
-  var need = r.first_step - Math.max(0, S.eff);
+  var have = Math.max(0, S.eff);
+  var need = r.first_step - have;
   var when = '';
-  if (nb) { when = (r.due_ms > S.day_ms + nb.start * 60000) ? ' during ' + nb.title : ' before ' + nb.title; }
-  var loss = (r.money !== null && r.money > 0) ? pipMoney(r.money) + ' at risk' : 'the deadline passes';
-  return 'Needs ~' + r.first_step + ' min but you have ' + Math.max(0, S.eff) + (nb ? ' before ' + nb.title : '') +
-    ', and it is due ' + pipClock(r.due_ms) + when + ' — ' + loss + ' unless you find ' + need + ' more minutes.';
+  if (nb && r.due_ms !== null) { when = (r.due_ms > S.day_ms + nb.start * 60000) ? ' during ' + nb.title : ' before ' + nb.title; }
+  var loss = (r.money !== null && r.money > 0) ? pipMoney(r.money) + ' at risk' : 'the deadline is at risk';
+  return r.title + ' needs ~' + r.first_step + ' min, you have ' + have + (nb ? ' before ' + nb.title : ' free now') +
+    (r.due_ms !== null ? ', due ' + pipClock(r.due_ms) + when : '') + ' — ' + loss + ' unless you find ' + need + ' more minutes.';
 }
 function pipGroceryWhy(S) {
   var m = S.money;
@@ -148,9 +158,13 @@ function pipCanWaitWhy(S, r) {
   parts.push(r.defer_count > 0 ? 'deferred ' + pipPlural(r.defer_count, 'time') + ' so far' : 'not deferred yet');
   return parts.join(', ') + '.';
 }
-function pipGuardSentence(S, r) {
-  return r.title + ': open ' + Math.round(r.hours_open) + ' h and deferred ' + pipPlural(r.defer_count, 'time') +
-    ', so it stays on tonight\'s plan at ' + pipMinClock(S, S.bed_min) + '.';
+// atMin: minutes of day the item is planned at (bedtime or a slot), or null when it has no slot
+function pipGuardSentence(S, r, atMin) {
+  var tail;
+  if (atMin === null) { tail = ', so it stays on today\'s plan.'; }
+  else if (atMin === S.bed_min) { tail = ', so it stays on tonight\'s plan at ' + pipMinClock(S, atMin) + '.'; }
+  else { tail = ', so it stays on today\'s plan at ' + pipMinClock(S, atMin) + '.'; }
+  return r.title + ': open ' + Math.round(r.hours_open) + ' h and deferred ' + pipPlural(r.defer_count, 'time') + tail;
 }
 
 // ----- skeleton ------------------------------------------------------------------------
@@ -175,8 +189,10 @@ function pipBuildSkeleton(S) {
     var d = pipTaskItem(dn);
     d.action = pipDoNowAction(S, dn);
     d.why = pipDoNowWhy(S, dn);
-    d.starts_at = S.now_str;
-    d.ends_at = dn.fits ? pipFmtTs(S.now_ms + dn.first_step * 60000) : null;
+    // do_now happens in the free window: it starts at the window start (now, or the end of
+    // the block the student is in right now)
+    d.starts_at = pipFmtTs(S.fw.ws_ms);
+    d.ends_at = dn.fits ? pipFmtTs(S.fw.ws_ms + dn.first_step * 60000) : null;
     if (dn.at_risk) { skel.warnings.push({ task_id: dn.task_id, text: pipAtRiskText(S, dn) }); }
     skel.do_now = d;
     skel.itemsById[dn.task_id] = d;
@@ -208,14 +224,17 @@ function pipBuildSkeleton(S) {
     }
   }
 
-  // buckets
-  var atRisk = [], dated = [], undated = [], restGuard = [], wait = [];
+  // buckets: at_risk first; rest tasks at bedtime; tasks with R1/R2/R3/R5 or the guard are
+  // slotted (dated by due, then undated by score); everything else can wait.
+  // Balance-guard meal items are slotted like other tasks (plan.ts group 1/2), only rest
+  // tasks go to bedtime.
+  var atRisk = [], dated = [], undated = [], bedtime = [], wait = [];
   for (i = 0; i < rows.length; i++) {
     var r = rows[i];
     if (r === dn) { continue; }
     if (r.at_risk) { atRisk.push(r); }
-    else if (r.guard || r.category === 'rest') { restGuard.push(r); }
-    else if (r.r1 || r.r2 || r.r3 || r.r5) { if (r.due_ms !== null) { dated.push(r); } else { undated.push(r); } }
+    else if (r.category === 'rest') { bedtime.push(r); }
+    else if (r.r1 || r.r2 || r.r3 || r.r5 || r.guard) { if (r.due_ms !== null) { dated.push(r); } else { undated.push(r); } }
     else { wait.push(r); }
   }
   var datedEntries = [];
@@ -223,7 +242,7 @@ function pipBuildSkeleton(S) {
   for (i = 0; i < dated.length; i++) { datedEntries.push({ row: dated[i], cont: false }); }
   for (i = 0; i < undated.length; i++) { undatedEntries.push({ row: undated[i], cont: false }); }
   // do_now continuation session (assignment/work with more work than the first step)
-  if (dn && dn.fits && pipIn(['assignment', 'work'], dn.category) && dn.est !== null && dn.est > dn.first_step) {
+  if (dn && pipIn(['assignment', 'work'], dn.category) && dn.est !== null && dn.est > dn.first_step) {
     if (dn.due_ms !== null) { datedEntries.push({ row: dn, cont: true }); } else { undatedEntries.unshift({ row: dn, cont: true }); }
   }
   datedEntries = pipStableSort(datedEntries, function (a, b) {
@@ -237,8 +256,9 @@ function pipBuildSkeleton(S) {
   for (i = 0; i < S.blocks.length; i++) { if (nb && S.blocks[i].start > nb.start) { later.push(S.blocks[i]); } }
   var cursor;
   if (nb) { cursor = nb.end + 15; }
-  else { cursor = Math.ceil(S.now_min) + (dn && dn.fits ? dn.first_step : 0) + 15; }
-  function place(session) {
+  else { cursor = Math.ceil(S.fw.ws) + (dn && dn.fits ? dn.first_step : 0) + 15; }
+  // first slot at or after the cursor that does not overlap a later fixed block (does not move the cursor)
+  function findSlot(session) {
     var s = cursor;
     var moved = true;
     var loops = 0;
@@ -249,7 +269,6 @@ function pipBuildSkeleton(S) {
       }
     }
     if (s + session > 24 * 60) { return null; }
-    cursor = s + session + 15;
     return { start: s, end: s + session };
   }
 
@@ -268,8 +287,18 @@ function pipBuildSkeleton(S) {
     var it = pipTaskItem(sr);
     var remaining = en.cont ? (sr.est - sr.first_step) : (sr.est !== null ? sr.est : sr.first_step);
     var session = Math.max(5, Math.min(remaining, 90));
-    var slot = place(session);
-    if (slot) { it.starts_at = pipMinTs(S, slot.start); it.ends_at = pipMinTs(S, slot.end); }
+    var slot = findSlot(session);
+    var missedAt = null;
+    // a dated task whose next open slot starts at or after its deadline gets no slot (plan.ts missedSlot)
+    if (slot && !en.cont && sr.due_ms !== null && S.day_ms + slot.start * 60000 >= sr.due_ms) {
+      missedAt = slot.start;
+      slot = null;
+    }
+    if (slot) {
+      cursor = slot.end + 15;
+      it.starts_at = pipMinTs(S, slot.start);
+      it.ends_at = pipMinTs(S, slot.end);
+    }
     var at = slot ? pipMinClock(S, slot.start) : null;
     if (en.cont) {
       it.item_id = sr.task_id + '#cont';
@@ -286,7 +315,14 @@ function pipBuildSkeleton(S) {
       skel.today.push(it);
       continue;
     }
-    if (pipIsGrocery(sr)) {
+    if (missedAt !== null) {
+      var dueDesc = pipDueDesc(sr.due_ms, S.now_ms);
+      it.action = 'Squeeze in ' + sr.title + ' (~' + session + ' min) ' + pipBy(dueDesc);
+      it.why = 'It is due ' + dueDesc + ', before the next open slot at ' + pipMinClock(S, missedAt) +
+        ', so it needs a gap you make yourself.';
+      skel.warnings.push({ task_id: sr.task_id, text: sr.title + ' is due ' + dueDesc + ', before your next open slot at ' +
+        pipMinClock(S, missedAt) + '.' });
+    } else if (pipIsGrocery(sr)) {
       it.action = 'Buy groceries with a ' + pipMoney(S.money.cap) + ' cap (~' + session + ' min)';
       it.why = pipGroceryWhy(S);
     } else if (sr.due_ms !== null) {
@@ -297,15 +333,25 @@ function pipBuildSkeleton(S) {
       it.action = 'Do: ' + sr.title + ' (~' + session + ' min)';
       it.why = 'It covers a basic need today' + (at ? ', so ' + session + ' min are set aside at ' + at + '.' : '.');
     }
+    if (sr.guard) {
+      if (missedAt === null) {
+        it.why = sr.title + ' has been open ' + Math.round(sr.hours_open) + ' h and put off ' + pipPlural(sr.defer_count, 'time') +
+          ', so Pip keeps it on today\'s plan' + (at ? ' at ' + at : '') + '.';
+      }
+      skel.balance_guard.push(pipGuardSentence(S, sr, slot ? slot.start : null));
+    }
     skel.today.push(it);
   }
   for (i = 0; i < later.length; i++) {
     skel.today.push(pipBlockItem(S, later[i], later[i].title + ' is fixed from ' + pipMinClock(S, later[i].start) +
       ' to ' + pipMinClock(S, later[i].end) + ', so nothing else is planned then.'));
   }
-  restGuard = pipStableSort(restGuard, function (a, b) { return b.score - a.score; });
-  for (i = 0; i < restGuard.length; i++) {
-    var g = restGuard[i];
+  bedtime = pipStableSort(bedtime, function (a, b) {
+    if (a.guard !== b.guard) { return a.guard ? -1 : 1; }
+    return b.score - a.score;
+  });
+  for (i = 0; i < bedtime.length; i++) {
+    var g = bedtime[i];
     var gi = pipTaskItem(g);
     var bed = pipMinClock(S, S.bed_min);
     gi.starts_at = pipMinTs(S, S.bed_min);
@@ -314,7 +360,7 @@ function pipBuildSkeleton(S) {
     if (g.guard) {
       gi.why = g.title + ' has been open ' + Math.round(g.hours_open) + ' h and put off ' + pipPlural(g.defer_count, 'time') +
         ', so Pip protects it at ' + bed + ' tonight.';
-      skel.balance_guard.push(pipGuardSentence(S, g));
+      skel.balance_guard.push(pipGuardSentence(S, g, S.bed_min));
     } else {
       gi.why = 'Rest keeps tomorrow workable, so it starts at ' + bed + ' tonight.';
     }

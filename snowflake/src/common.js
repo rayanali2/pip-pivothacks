@@ -60,6 +60,14 @@ function pipUuid() { return String(pipScalar('SELECT UUID_STRING()', [])); }
 function pipNowLocal() {
   return String(pipScalar('SELECT TO_VARCHAR(CURRENT_TIMESTAMP()::TIMESTAMP_NTZ, ' + PIP_TS_FMT + ')', []));
 }
+// Record timestamp (created_at of plans, actions, constraints). Stored with milliseconds so
+// rows written within the same second still order correctly (V_PLAN_HISTORY, history);
+// returned to the API without fractional seconds.
+var PIP_TS_MS_FMT = "'YYYY-MM-DD\"T\"HH24:MI:SS.FF3'";
+function pipNowRecord() {
+  var full = String(pipScalar('SELECT TO_VARCHAR(CURRENT_TIMESTAMP()::TIMESTAMP_NTZ, ' + PIP_TS_MS_FMT + ')', []));
+  return { full: full, short: full.substring(0, 19) };
+}
 
 // ----- time -----------------------------------------------------------------
 // 'YYYY-MM-DDTHH:MI[:SS]' (or with a space) -> naive ms, else null
@@ -75,11 +83,21 @@ function pipParseDate(s) {
   if (!m) { return null; }
   return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
 }
-// 'H:MM' / 'HH:MM[:SS]' -> minutes of day, else null
+// 'H:MM' / 'HH:MM[:SS]' / '2 PM' / '2:30 p.m.' -> minutes of day, else null
+// (a bare hour without AM/PM, e.g. '14', is rejected as ambiguous)
 function pipParseHm(s) {
-  var m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(pipTrim(s));
+  var t = pipTrim(s).toLowerCase().replace(/\./g, '');
+  var m = /^(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*(am|pm)?$/.exec(t);
   if (!m) { return null; }
-  var h = Number(m[1]); var mi = Number(m[2]);
+  var h = Number(m[1]);
+  var mi = Number(m[2] || 0);
+  if (m[3]) {
+    if (h < 1 || h > 12) { return null; }
+    if (m[3] === 'pm' && h !== 12) { h += 12; }
+    if (m[3] === 'am' && h === 12) { h = 0; }
+  } else if (!m[2]) {
+    return null;
+  }
   if (h > 23 || mi > 59) { return null; }
   return h * 60 + mi;
 }
@@ -196,6 +214,8 @@ function pipCompleteJson(prompt) {
   for (var k = 1; k <= 2; k++) {
     var r = pipComplete(p);
     errors = errors.concat(r.errors);
+    // every function/model failed: walking the whole chain again cannot help (the retry is for bad JSON)
+    if (r.text === null) { break; }
     if (r.text !== null) {
       var obj = pipExtractJson(r.text);
       if (obj) { return { obj: obj, fn: r.fn, model: r.model, attempts: k, errors: errors }; }

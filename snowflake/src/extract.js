@@ -63,7 +63,7 @@ function pipExtractPrompt(transcript, nowStr, openTasks, profile) {
     '- Now is ' + nowStr + ' (' + PIP_DAY_LONG[new Date(nowMs).getUTCDay()] + '). Today is ' + pipFmtDate(today) + '; tomorrow is ' + pipFmtDate(today + 86400000) + '.',
     '- A weekday name means the next such day strictly after today: ' + days.join(', ') + '.',
     '- Write every deadline as local time "YYYY-MM-DDTHH:MI:SS". A bare time such as "5 PM" means today at 17:00:00. "Due tomorrow" without a time means tomorrow at 23:59:00. No deadline mentioned means null.',
-    '- money_at_risk is the dollars lost if the deadline is missed (refund, fee, fine), otherwise null. est_minutes is a realistic whole-minute estimate, or null.',
+    '- money_at_risk is the dollars lost if the deadline is missed (refund, fee, fine), otherwise null. est_minutes is a realistic whole-minute estimate, or null. For an existing task (existing_task_id set) est_minutes is null unless the student says how long it takes.',
     '- A class, lab, lecture, shift or appointment at a fixed time is NOT a task. Output it as a constraint {"kind":"fixed_block","value":{"title":"...","starts_at":"HH:MM","ends_at":"HH:MM or null","location":"... or null"}} with 24-hour times.',
     '- "$X until <day>" is a constraint {"kind":"cash","value":{"amount":X,"until":"YYYY-MM-DD"}}.',
     '- "I only have N minutes" is a constraint {"kind":"time_window","value":{"minutes":N}}; half an hour = 30, an hour = 60.',
@@ -135,8 +135,8 @@ function pipExtractMain(captureId) {
     if (targetId) {
       pipExec('UPDATE PIP.APP.TASKS SET ' +
         'due_at = COALESCE(TRY_TO_TIMESTAMP_NTZ(NULLIF(?, \'\'), ' + PIP_TS_FMT + '), due_at), ' +
-        'money_at_risk = COALESCE(TRY_TO_NUMBER(NULLIF(?, \'\'), 10, 2), money_at_risk), ' +
-        'est_minutes = COALESCE(TRY_TO_NUMBER(NULLIF(?, \'\')), est_minutes), ' +
+        'money_at_risk = COALESCE(TRY_CAST(NULLIF(?, \'\') AS NUMBER(10,2)), money_at_risk), ' +
+        'est_minutes = COALESCE(est_minutes, TRY_CAST(NULLIF(?, \'\') AS NUMBER(6,0))), ' +
         "capture_id = ?, status = 'open' " +
         'WHERE task_id = ? AND student_id = ?',
         [due || '', money, est, String(captureId), targetId, studentId]);
@@ -145,7 +145,7 @@ function pipExtractMain(captureId) {
       pipExec('INSERT INTO PIP.APP.TASKS (task_id, student_id, capture_id, raw_text, normalized_text, category, due_at, ' +
         'money_at_risk, est_minutes, status, defer_count, created_at) ' +
         'SELECT ?, ?, ?, ?, ?, ?, TRY_TO_TIMESTAMP_NTZ(NULLIF(?, \'\'), ' + PIP_TS_FMT + '), ' +
-        "TRY_TO_NUMBER(NULLIF(?, ''), 10, 2), TRY_TO_NUMBER(NULLIF(?, '')), 'open', 0, CURRENT_TIMESTAMP()::TIMESTAMP_NTZ",
+        "TRY_CAST(NULLIF(?, '') AS NUMBER(10,2)), TRY_CAST(NULLIF(?, '') AS NUMBER(6,0)), 'open', 0, CURRENT_TIMESTAMP()::TIMESTAMP_NTZ",
         [targetId, studentId, String(captureId), raw, norm, category, due || '', money, est]);
     }
     if (!pipIn(touched, targetId)) { touched.push(targetId); }
@@ -157,13 +157,14 @@ function pipExtractMain(captureId) {
     var cc = pipCleanConstraint(rawCons[c]);
     if (!cc) { continue; }
     var cid = pipUuid();
-    var created = pipNowLocal();
+    var rec = pipNowRecord();
+    var created = rec.short;
     pipExec('INSERT INTO PIP.APP.CONSTRAINTS (constraint_id, capture_id, kind, value, created_at) ' +
-      'SELECT ?, ?, ?, PARSE_JSON(?), TO_TIMESTAMP_NTZ(?, ' + PIP_TS_FMT + ')',
-      [cid, String(captureId), cc.kind, JSON.stringify(cc.value), created]);
+      'SELECT ?, ?, ?, PARSE_JSON(?), TO_TIMESTAMP_NTZ(?, ' + PIP_TS_MS_FMT + ')',
+      [cid, String(captureId), cc.kind, JSON.stringify(cc.value), rec.full]);
     if (cc.kind === 'cash') {
       pipExec('MERGE INTO PIP.APP.PROFILE p ' +
-        'USING (SELECT ? AS sid, TRY_TO_NUMBER(?, 10, 2) AS cash, TRY_TO_DATE(NULLIF(?, \'\'), \'YYYY-MM-DD\') AS until_d) s ' +
+        'USING (SELECT ? AS sid, TRY_CAST(? AS NUMBER(10,2)) AS cash, TRY_TO_DATE(NULLIF(?, \'\'), \'YYYY-MM-DD\') AS until_d) s ' +
         'ON p.student_id = s.sid ' +
         'WHEN MATCHED THEN UPDATE SET cash_available = s.cash, budget_until = COALESCE(s.until_d, p.budget_until), ' +
         'updated_at = CURRENT_TIMESTAMP()::TIMESTAMP_NTZ ' +
