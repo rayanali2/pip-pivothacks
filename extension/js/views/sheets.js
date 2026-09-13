@@ -77,7 +77,7 @@ export function renderCalendarSheet(plan) {
   const start = Date.now() + 3600000;
   const options = plannedOptions(plan);
   return sheetFrame('Add event', html`
-    ${plan?.reasoning.answer ? html`<section class="form-section"><h3 class="section-title">Pip’s advice</h3><div class="form-card"><p>${plan.reasoning.answer}</p></div></section>` : ''}
+    ${plan?.reasoning.answer ? html`<section class="form-section"><h3 class="section-title">UniMate’s advice</h3><div class="form-card"><p>${plan.reasoning.answer}</p></div></section>` : ''}
     <section class="form-section">
       <h3 class="section-title">Event</h3>
       <div class="form-card">
@@ -94,7 +94,7 @@ export function renderCalendarSheet(plan) {
         <button type="button" class="form-button" data-action="cal-google">${i('external', 15)}Review in Google Calendar</button>
         <button type="button" class="form-button" data-action="cal-ics">${i('download', 15)}Download for Apple or Outlook (.ics)</button>
       </div>
-      <p class="footnote" id="cal-status">Google gets the name, times and location. Pip never reads calendars or changes your plan from them.</p>
+      <p class="footnote" id="cal-status">Google gets the name, times and location. UniMate never reads calendars or changes your plan from them.</p>
     </section>
   `, { cancel: 'Cancel' });
 }
@@ -118,16 +118,16 @@ export function googleCalendarUrl({ title, start, end, location }) {
   url.searchParams.set('text', title);
   url.searchParams.set('dates', `${utcStamp(start)}/${utcStamp(end)}`);
   url.searchParams.set('location', location);
-  url.searchParams.set('details', 'Added from Pip.');
+  url.searchParams.set('details', 'Added from UniMate.');
   return url.toString().replace(/\+/g, '%20');
 }
 
 export function icsFile({ title, start, end, location }) {
   const escape = (v) => v.replace(/[\\;,]/g, (c) => `\\${c}`).replace(/\n/g, '\\n');
   return [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Pip//Chrome//EN', 'BEGIN:VEVENT',
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//UniMate//Chrome//EN', 'BEGIN:VEVENT',
     `UID:${crypto.randomUUID()}@pip`, `DTSTAMP:${utcStamp(new Date())}`, `DTSTART:${utcStamp(start)}`, `DTEND:${utcStamp(end)}`,
-    `SUMMARY:${escape(title)}`, location ? `LOCATION:${escape(location)}` : null, 'DESCRIPTION:Added from Pip.',
+    `SUMMARY:${escape(title)}`, location ? `LOCATION:${escape(location)}` : null, 'DESCRIPTION:Added from UniMate.',
     'END:VEVENT', 'END:VCALENDAR',
   ].filter(Boolean).join('\r\n');
 }

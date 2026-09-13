@@ -169,7 +169,7 @@ export async function pressMic(followUp = false) {
   const permission = await microphonePermission();
   if (permission !== 'granted') {
     if (permission === 'denied') {
-      showBanner('Microphone access is off. Allow it for Pip in Chrome settings, or type instead.');
+      showBanner('Microphone access is off. Allow it for UniMate in Chrome settings, or type instead.');
     } else {
       showBanner('Allow the microphone in the tab that just opened, then hold to talk again.');
       openPermissionTab();
@@ -210,7 +210,7 @@ export async function stopRecordingAndSend() {
   const result = await recorder.stop();
   if (revision !== planRevision) return;
   if (!result?.blob?.size) {
-    handleFailure(new Error('Pip didn’t catch any audio. Try again or type instead.'), revision);
+    handleFailure(new Error('UniMate didn’t catch any audio. Try again or type instead.'), revision);
     return;
   }
   set({ submittedText: result.transcript || '' });
@@ -266,10 +266,10 @@ export async function scanTab() {
   if (isBusy()) return;
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) throw new Error('Open the course page you want Pip to scan, then try again.');
+    if (!tab?.id) throw new Error('Open the course page you want UniMate to scan, then try again.');
     if (!/^https?:/i.test(tab.url || '')) throw new Error('Chrome doesn’t let extensions read this page. Open a normal course website tab.');
     const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: globalThis.extractPipPageContext });
-    if (!result?.text) throw new Error('Pip couldn’t find readable text on this tab.');
+    if (!result?.text) throw new Error('UniMate couldn’t find readable text on this tab.');
     const prompt = `Course page: ${result.title}\nFind every actionable course task, due date, exam, class time, and deadline in the page excerpt below. Add them to my tasks and rank what matters now. Do not invent dates that are not shown.\n\n${result.text}`;
     sendText(prompt.slice(0, 5000), { label: `Scanned “${result.title}”` });
   } catch (error) {
@@ -570,7 +570,7 @@ function handleCapture(response, { isFollowUp, revision }) {
     Object.assign(state, { pipelineStages: response.pipeline || [], needsText: true });
     endReveal();
     if (!isFollowUp) Object.assign(state, { transcript: response.transcript, draft: response.transcript });
-    else showBanner("Pip couldn't hear that. Try typing your question.");
+    else showBanner("UniMate couldn't hear that. Try typing your question.");
     requestTextFocus();
     speakOrIdle("I couldn't quite hear that. Can you type it instead?");
     return;
@@ -655,7 +655,7 @@ function speakPlan(plan, isRerun) {
   if (!doNow) { speakOrIdle(plan.reasoning.summary); return; }
   const parts = [];
   if (isRerun && plan.reasoning.answer) parts.push(plan.reasoning.answer);
-  parts.push(`Do now: ${doNow.action.replace(/\.$/, '')}.`);
+  parts.push(`Here's your next step. ${doNow.action.replace(/\.$/, '')}.`);
   parts.push(doNow.why);
   speakOrIdle(parts.join(' '));
 }

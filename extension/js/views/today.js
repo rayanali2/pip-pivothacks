@@ -88,8 +88,8 @@ export function renderToday(s, ui) {
       <section class="card empty-card">
         ${penguinSlot('today', 60, 'idle')}
         <h2 class="heading">No plan yet</h2>
-        <p class="secondary-text center">Tell Pip about your day to get one next step.</p>
-        <button type="button" class="btn-primary" data-action="tab" data-tab="home">${i('mic', 16)}Talk to Pip</button>
+        <p class="secondary-text center">Tell UniMate about your day to get one next step.</p>
+        <button type="button" class="btn-primary" data-action="tab" data-tab="home">${i('mic', 16)}Talk to UniMate</button>
       </section></div>`;
   }
 

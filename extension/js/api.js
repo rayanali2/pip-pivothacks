@@ -1,4 +1,4 @@
-// HTTP client for the Pip API (docs/CONTRACT.md), with the same identity rules as ios/Pip/Pip/Config.swift:
+// HTTP client for the UniMate API (docs/CONTRACT.md), with the same identity rules as ios/Pip/Pip/Config.swift:
 // a stable per-install student ID, and the shared "demo" student only in developer demo mode.
 
 export const DEFAULT_BASE = 'http://localhost:3000';
@@ -61,7 +61,7 @@ async function request(path, { method = 'GET', body, query } = {}) {
   } catch (error) {
     const timedOut = error?.name === 'TimeoutError';
     throw new ApiError(
-      timedOut ? 'Pip took too long to answer. Try again.' : `Can't reach Pip at ${config.base}. Start the API with npm run dev, then try again.`,
+      timedOut ? 'UniMate took too long to answer. Try again.' : `Can't reach UniMate at ${config.base}. Start the API with npm run dev, then try again.`,
       { offline: !timedOut },
     );
   }

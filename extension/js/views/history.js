@@ -62,7 +62,7 @@ export function renderHistory(s, ui) {
   } else {
     body = sorted.length
       ? sorted.map(decisionRow)
-      : html`<div class="form-row">${statusView('history', ui.actionsOnly ? 'No actions yet' : 'No decisions yet', ui.actionsOnly ? 'Tap Start now on a task.' : 'Talk to Pip to make your first plan.')}</div>`;
+      : html`<div class="form-row">${statusView('history', ui.actionsOnly ? 'No actions yet' : 'No decisions yet', ui.actionsOnly ? 'Tap Start now on a task.' : 'Talk to UniMate to make your first plan.')}</div>`;
   }
 
   return html`<div class="page history">

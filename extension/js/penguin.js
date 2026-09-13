@@ -92,7 +92,7 @@ export class Penguin {
     this.state = state;
     this.ready = ready;
     const label = ready && state === 'idle' ? 'your next step is ready' : CAPTION[state];
-    this.root.setAttribute('aria-label', `Pip the penguin, ${label}`);
+    this.root.setAttribute('aria-label', `UniMate the penguin, ${label}`);
   }
 
   /** One spoken word: the beak drops open and closes about 0.12 s later. */

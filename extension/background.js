@@ -40,7 +40,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     await updateBadge();
     chrome.notifications.create(`focus-${focusSession.id}`, {
       type: 'basic', iconUrl: ICON, title: 'Time is up',
-      message: `${focusSession.title}: finished? Open Pip for your next step.`, priority: 2,
+      message: `${focusSession.title}: finished? Open UniMate for your next step.`, priority: 2,
     });
     return;
   }
@@ -51,7 +51,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     const reminder = (reminders || []).find((r) => r.id === id);
     if (!reminder || reminder.completed || !reminder.notify) return;
     chrome.notifications.create(alarm.name, {
-      type: 'basic', iconUrl: ICON, title: reminder.title, message: 'Your Pip reminder is due.', priority: 1,
+      type: 'basic', iconUrl: ICON, title: reminder.title, message: 'Your UniMate reminder is due.', priority: 1,
     });
   }
 });

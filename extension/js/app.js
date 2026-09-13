@@ -1,4 +1,4 @@
-// Side panel shell: tab bar (Pip · Today · Schedule · History like RootView.swift), per-tab navigation
+// Side panel shell: tab bar (UniMate · Today · Schedule · History like RootView.swift), per-tab navigation
 // stacks for task detail, sheets, the focus overlay and the banner. One delegated event layer.
 
 import { $, $$, flip, html } from './dom.js';
@@ -21,7 +21,7 @@ import {
 } from './views/sheets.js';
 
 const TABS = [
-  { id: 'home', label: 'Pip', symbol: 'bird' },
+  { id: 'home', label: 'UniMate', symbol: 'bird' },
   { id: 'today', label: 'Today', symbol: 'checklist' },
   { id: 'schedule', label: 'Schedule', symbol: 'calendar' },
   { id: 'history', label: 'History', symbol: 'history' },
@@ -230,7 +230,7 @@ const actions = {
   'sheet-close': () => closeSheet(),
   'sheet-close-backdrop': (el, event) => { if (event.target === el) closeSheet(); },
   'cal-google': () => {
-    try { chrome.tabs.create({ url: googleCalendarUrl(calendarDraft(root)) }); $('#cal-status', root).textContent = 'Tap Save in Google Calendar to finish. Pip can’t confirm it saved.'; } catch (error) { model.showBanner(error.message); }
+    try { chrome.tabs.create({ url: googleCalendarUrl(calendarDraft(root)) }); $('#cal-status', root).textContent = 'Tap Save in Google Calendar to finish. UniMate can’t confirm it saved.'; } catch (error) { model.showBanner(error.message); }
   },
   'cal-ics': () => {
     try {

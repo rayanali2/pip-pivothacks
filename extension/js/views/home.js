@@ -10,7 +10,7 @@ export const DEMO_SENTENCE = 'I have a 2 PM lab. I need to return headphones by 
 export const hasResult = (s) => s.hasCapture && s.currentPlan?.do_now && !s.needsText && s.pipState !== 'listening' && !s.isRevealingPipeline;
 
 export function muteButton(s) {
-  return html`<button type="button" class="icon-button" data-action="mute" aria-label="${s.muted ? 'Unmute Pip' : 'Mute Pip'}">${i(s.muted ? 'speakerOff' : 'speaker', 17)}</button>`;
+  return html`<button type="button" class="icon-button" data-action="mute" aria-label="${s.muted ? 'Unmute UniMate' : 'Mute UniMate'}">${i(s.muted ? 'speakerOff' : 'speaker', 17)}</button>`;
 }
 
 export function penguinSlot(key, size, state, ready = false) {
@@ -67,7 +67,7 @@ function upNext(plan) {
 function transcriptCard(s) {
   if (s.needsText) {
     return html`<section class="card">
-      ${statusView('micOff', 'Let’s try typing', 'Pip couldn’t hear that.')}
+      ${statusView('micOff', 'Let’s try typing', 'UniMate couldn’t hear that.')}
       <button type="button" class="btn-primary" data-action="focus-input">Type instead</button>
     </section>`;
   }
@@ -90,7 +90,7 @@ export function renderHome(s, ui) {
   const typed = (ui.homeText || '').trim();
 
   return html`<div class="page home">
-    <header class="row between"><h1 class="title">Hey, I’m Pip.</h1>${muteButton(s)}</header>
+    <header class="row between"><h1 class="title">Hey, I’m UniMate.</h1>${muteButton(s)}</header>
     ${contextFacts(s)}
     <div class="hero">
       ${penguinSlot('home', result || s.needsText ? 60 : 128, s.pipState, !!result)}
@@ -104,7 +104,7 @@ export function renderHome(s, ui) {
     <div class="controls">
       ${listeningHere ? recordingStatus(s) : ''}
       <button type="button" class="mic ${listeningHere ? 'listening' : ''} ${result ? 'small' : ''}" data-mic="home" ${busy ? raw('disabled') : ''} aria-label="${listeningHere ? 'Stop recording and send' : 'Hold to talk'}">${i(listeningHere ? 'waveform' : 'mic', result ? 24 : 32)}</button>
-      <span class="caption">${listeningHere ? 'Release or tap to send' : result ? 'Hold to tell Pip more' : 'Hold to talk'}</span>
+      <span class="caption">${listeningHere ? 'Release or tap to send' : result ? 'Hold to tell UniMate more' : 'Hold to talk'}</span>
       <form class="composer" data-form="home-send">
         <textarea id="home-input" class="field" rows="1" placeholder="Or type your day…" maxlength="5000" data-bind="homeText" aria-label="Type your day">${ui.homeText || ''}</textarea>
         <button type="submit" class="send" aria-label="Send your day" ${!typed || busy ? raw('disabled') : ''}>${i('arrowUp', 18)}</button>

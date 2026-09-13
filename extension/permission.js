@@ -7,7 +7,7 @@ async function ask() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     stream.getTracks().forEach((track) => track.stop());
-    status.textContent = 'Microphone ready. Go back to Pip and hold the button to talk. This tab closes in a moment.';
+    status.textContent = 'Microphone ready. Go back to UniMate and hold the button to talk. This tab closes in a moment.';
     button.hidden = true;
     setTimeout(() => window.close(), 2200);
   } catch {

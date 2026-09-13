@@ -43,7 +43,7 @@ export function renderFocus(session, s) {
       <p class="secondary-text small-label center-self">${i('bell', 13)}Chrome will notify you when time is up</p>
       ${timeUp ? html`<section class="card emphasized">
         <strong class="accent-text small-label">${i('bell', 15)}Time is up</strong>
-        <p class="secondary-text">Finished? Pip will pick your next step.</p>
+        <p class="secondary-text">Finished? UniMate will pick your next step.</p>
         <button type="button" class="btn-primary" data-action="focus-done">${i('check', 16)}Done: what next?</button>
         <div class="button-row">${extend}<button type="button" class="btn-secondary grow" data-action="focus-stuck" ${s.pipState === 'thinking' ? raw('disabled') : ''}>${i('question', 15)}I’m stuck</button></div>
       </section>` : html`<div class="button-row">${extend}<button type="button" class="btn-secondary grow" data-action="focus-done">${i('check', 15)}Done early</button></div>

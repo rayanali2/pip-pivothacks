@@ -1,15 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "Pip — One thing at a time",
+  "name": "UniMate — One thing at a time",
   "version": "2.0.0",
-  "description": "Your student day, made manageable. Talk or type to Pip in Chrome's side panel and get one next step.",
+  "description": "Your student day, made manageable. Talk or type to UniMate in Chrome's side panel and get one next step.",
   "minimum_chrome_version": "116",
   "permissions": ["activeTab", "scripting", "sidePanel", "storage", "alarms", "notifications"],
   "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
   "background": { "service_worker": "background.js" },
   "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
   "action": {
-    "default_title": "Open Pip",
+    "default_title": "Open UniMate",
     "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png" }
   },
   "side_panel": { "default_path": "panel.html" }
