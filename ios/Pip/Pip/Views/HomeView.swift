@@ -38,7 +38,7 @@ struct HomeView: View {
                 }
                 controls
                 if model.isOffline {
-                    PipStatusView(symbol: "wifi.slash", title: "You’re offline", detail: "Plans still work with local data.")
+                    PipStatusView(symbol: "wifi.slash", title: "Server unavailable", detail: Config.isDemoMode ? "Developer demo data is active." : "Reconnect to create or update your plan. Check the server address in Schedule.")
                 }
             }
             .padding(.horizontal, PipDesign.page)
@@ -119,12 +119,12 @@ struct HomeView: View {
             .padding(.top, 4)
             ViewThatFits(in: .horizontal) {
                 HStack {
-                    demoButton
+                    if Config.isDemoMode { demoButton }
                     Spacer()
                     SourceLabel(source: model.lastSource)
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    demoButton
+                    if Config.isDemoMode { demoButton }
                     SourceLabel(source: model.lastSource)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -146,8 +146,10 @@ struct HomeView: View {
         let text = trimmedTyped
         guard !text.isEmpty else { return }
         submittedText = text
-        model.sendText(text)
-        typedText = ""
+        model.sendText(text) {
+            // Keep an unsent edit or a failed submission available for retry.
+            if trimmedTyped == text { typedText = "" }
+        }
         inputFocused = false
     }
 }

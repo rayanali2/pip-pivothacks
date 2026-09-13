@@ -158,6 +158,21 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('LiveBackend', () => {
+  it('a Snowflake outage extracts only the non-demo student input', async () => {
+    const executor = new FakeExecutor(() => { throw new Error('snowflake unreachable'); });
+    const service = liveServiceWith(live(executor));
+    const capture = await service.captureText({
+      student_id: 'real-outage', text: 'I need to renew my passport tomorrow.', followup_plan_id: null,
+    });
+    expect(capture.source).toBe('fallback');
+    expect(capture.plan.student_id).toBe('real-outage');
+    expect(capture.tasks).toHaveLength(1);
+    expect(capture.plan.do_now?.title).toMatch(/passport/i);
+    expect(JSON.stringify(capture)).not.toMatch(/headphones|CHEM 110|CS 101|demo-return/);
+    expect((await service.history('another-person')).entries).toEqual([]);
+    expect((await service.timetable('real-outage')).blocks).toEqual([]);
+  });
+
   it('(a) every Snowflake call throws -> PipService answers 200-shaped data with source fallback', async () => {
     const executor = new FakeExecutor(() => {
       throw new Error('snowflake unreachable');

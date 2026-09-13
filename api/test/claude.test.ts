@@ -218,12 +218,12 @@ describe('Claude in the memory backend', () => {
     expect(res.plan.do_now?.task_id).toBe('demo-return-headphones');
   });
 
-  it('follow-ups never call Claude (minutes and cash are parsed from the question)', async () => {
+  it('follow-up captures run extraction and still apply minutes from the question', async () => {
     const fake = fakeClient(async () => textMessage(JSON.stringify(demoClaudeOutput(demoNow()))));
     const service = serviceWith(createTranscriptExtractor({ client: fake.client, ...OPTIONS }));
     const cap = await service.captureText({ student_id: 'demo', text: DEMO_TRANSCRIPT, followup_plan_id: null });
     const follow = await service.captureText({ student_id: 'demo', text: 'I only have 25 minutes', followup_plan_id: cap.plan.plan_id });
-    expect(fake.calls).toHaveLength(1);
+    expect(fake.calls).toHaveLength(2);
     expect(follow.plan.do_now?.task_id).toBe('demo-assignment');
   });
 });

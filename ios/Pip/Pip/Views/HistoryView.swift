@@ -26,7 +26,7 @@ struct HistoryView: View {
                 }
                 .buttonStyle(.plain)
                 .listRowSeparator(.hidden).listRowBackground(Color.clear)
-                if mode != .pivots {
+                if Config.isDemoMode && mode != .pivots {
                     Section {
                         Picker("View", selection: $mode) {
                             Text("Decisions").tag(HistoryMode.decisions)
@@ -55,12 +55,14 @@ struct HistoryView: View {
             .pipScreen()
             .navigationTitle(mode == .pivots ? "Pivot Log" : "History")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(mode == .pivots ? "Decisions" : "Pivot Log") {
-                        mode = mode == .pivots ? .decisions : .pivots
+                if Config.isDemoMode {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(mode == .pivots ? "Decisions" : "Pivot Log") {
+                            mode = mode == .pivots ? .decisions : .pivots
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .tint(PipDesign.accent)
                     }
-                    .font(.subheadline.weight(.semibold))
-                    .tint(PipDesign.accent)
                 }
             }
             .refreshable {

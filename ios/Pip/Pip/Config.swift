@@ -5,8 +5,22 @@ enum Config {
     /// to http://<laptop LAN IP>:3000, e.g. http://192.168.1.20:3000
     static let defaultAPIBaseURL = "http://localhost:3000"
 
-    /// The demo student. Every request sends this id.
-    static let studentID = "demo"
+    /// Stable per-install identity. Demo fixtures require an explicit developer opt-in.
+    static var isDemoMode: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("--pip-demo")
+        #else
+        return false
+        #endif
+    }
+    static var studentID: String {
+        if isDemoMode { return "demo" }
+        let key = "pip.studentID.v1"
+        if let saved = UserDefaults.standard.string(forKey: key), !saved.isEmpty, saved != "demo" { return saved }
+        let id = "student-" + UUID().uuidString.lowercased()
+        UserDefaults.standard.set(id, forKey: key)
+        return id
+    }
 
     static let apiBaseURLKey = "api_base_url"
     static let mutedKey = "pip_muted"

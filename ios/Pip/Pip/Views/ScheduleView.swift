@@ -605,15 +605,17 @@ private struct ServerSection: View {
                 HealthSummary(health: health, isOffline: model.isOffline)
             }
 
-            Button("Reset demo data", role: .destructive) {
-                Task {
-                    await model.resetDemo()
+            if Config.isDemoMode {
+                Button("Reset demo data", role: .destructive) {
+                    Task {
+                        await model.resetDemo()
+                    }
                 }
             }
         } header: {
             Text("Server")
         } footer: {
-            Text("Use your laptop’s LAN IP. Offline uses local data.")
+            Text("Use your laptop’s LAN IP. A server connection is required to save your input and update plans.")
         }
     }
 }
@@ -623,7 +625,7 @@ private struct HealthSummary: View {
     let isOffline: Bool
 
     private var modeText: String {
-        isOffline ? "Local fallback (offline)" : health.mode.capitalized
+        isOffline ? (Config.isDemoMode ? "Developer demo (offline)" : "Unavailable") : health.mode.capitalized
     }
 
     private var snowflakeText: String {

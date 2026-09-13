@@ -171,13 +171,15 @@ struct FocusSessionView: View {
                 .buttonStyle(FocusSecondaryButtonStyle())
                 .accessibilityHint("Marks \(current.title) done and picks your next step")
             }
-            Button("Skip to end (demo)") {
-                model.skipFocusToEnd()
+            if Config.isDemoMode {
+                Button("Skip to end (demo)") {
+                    model.skipFocusToEnd()
+                }
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(PipDesign.secondary)
+                .frame(minHeight: 44)
+                .accessibilityHint("Makes the timer run out in 3 seconds")
             }
-            .font(.footnote.weight(.medium))
-            .foregroundStyle(PipDesign.secondary)
-            .frame(minHeight: 44)
-            .accessibilityHint("Makes the timer run out in 3 seconds")
         }
     }
 

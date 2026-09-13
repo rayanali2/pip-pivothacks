@@ -19,13 +19,10 @@ export interface ClockOptions {
   mode: 'mock' | 'live';
 }
 
-export const DEFAULT_MOCK_TIME = '13:13';
-
-/** CONTRACT section 2. */
+/** Real time by default; a pinned demo clock requires an explicit HH:MM. */
 export function createClock(opts: ClockOptions): Clock {
   let pinnedTime: string | null = null;
   if (opts.demoNow !== null && opts.demoNow !== 'real') pinnedTime = opts.demoNow;
-  else if (opts.demoNow === null && opts.mode === 'mock') pinnedTime = DEFAULT_MOCK_TIME;
 
   if (pinnedTime === null) {
     return { now: () => new Date(), realNow: () => new Date(), pinned: false, pinnedTime: null };

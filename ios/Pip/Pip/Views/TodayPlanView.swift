@@ -40,7 +40,7 @@ struct TodayPlanView: View {
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: PipDesign.gap) {
-                    ContextSection()
+                    if Config.isDemoMode { ContextSection() }
                     VStack(spacing: 10) {
                         PenguinView(state: .idle, size: 60)
                             .accessibilityHidden(true)
@@ -480,8 +480,9 @@ private struct FollowUpBar: View {
     private func send() {
         let question = trimmed
         guard !question.isEmpty else { return }
-        model.followUp(text: question)
-        text = ""
+        model.followUp(text: question) {
+            if text.trimmingCharacters(in: .whitespacesAndNewlines) == question { text = "" }
+        }
         focused = false
     }
 }

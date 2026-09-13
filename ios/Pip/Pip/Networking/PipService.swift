@@ -8,6 +8,7 @@ enum PipError: LocalizedError {
     case missingFixture(String)
     case noPlan
     case previewNeedsServer
+    case serverUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -18,12 +19,13 @@ enum PipError: LocalizedError {
         case .missingFixture(let name): return "Offline data \(name).json is missing from the app."
         case .noPlan: return "Tell Pip about your day first."
         case .previewNeedsServer: return "Previews need the Pip server."
+        case .serverUnavailable: return "Pip couldn't reach the server. Check the server address in Schedule and try again."
         }
     }
 }
 
 /// Everything the app asks of the Pip API. RemoteService talks HTTP;
-/// OfflineService serves bundled fixtures when the API is unreachable.
+/// OfflineService serves bundled fixtures only in explicit developer demo mode.
 @MainActor
 protocol PipService: AnyObject {
     var isOffline: Bool { get }

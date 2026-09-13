@@ -13,12 +13,7 @@ const optionalId = z
   .transform((v) => (v === undefined || v === null || v === '' ? null : v));
 
 export const studentQuerySchema = z.object({
-  student_id: z
-    .string()
-    .trim()
-    .max(128)
-    .optional()
-    .transform((v) => (v === undefined || v === '' ? 'demo' : v)),
+  student_id: studentId,
 });
 
 export const captureTextSchema = z.object({

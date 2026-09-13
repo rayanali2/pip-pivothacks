@@ -107,7 +107,7 @@ describe('pipeline trace in mock mode', () => {
     expect(followup.transcript).toBe('I only have 25 minutes');
     expect(followup.previous_plan_id).toBe(canned.plan.plan_id);
     expect(byId(followup.pipeline, 'transcribe').engine).toBe('On-device speech (iOS)');
-    expect(byId(followup.pipeline, 'extract').detail).toBe('Parsed 25 min from your question');
+    expect(byId(followup.pipeline, 'extract').detail).toBe('0 tasks · 1 constraint');
   });
 
   it('rerank: transcribe skipped, question parsed by the heuristic parser, ranker and templates', async () => {

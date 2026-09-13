@@ -27,6 +27,7 @@ final class OfflineService: PipService {
     }
 
     func load<T: Decodable>(_ fixture: Fixture, as type: T.Type) throws -> T {
+        guard Config.isDemoMode else { throw PipError.server("Pip cannot make a new plan while offline. Reconnect to the server and try again; your input has not been replaced with a demo.") }
         guard let url = Bundle.main.url(forResource: fixture.rawValue, withExtension: "json") else {
             throw PipError.missingFixture(fixture.rawValue)
         }

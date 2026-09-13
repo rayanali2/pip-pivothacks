@@ -356,7 +356,7 @@ export class LiveBackend implements Backend {
   }
 
   /**
-   * EXTRACT_FROM_TRANSCRIPT; when it errors or finds no tasks, the transcript extractor (Claude when configured, then the
+   * EXTRACT_FROM_TRANSCRIPT; when it errors, the transcript extractor (Claude when configured, then the
    * heuristic parser) writes to Snowflake instead. Returns the extract pipeline stage.
    */
   private async extractForCapture(capture: Capture, now: Date, question: string | null): Promise<PipelineStage> {
@@ -369,7 +369,7 @@ export class LiveBackend implements Backend {
       if (isConnectionError(err)) throw err;
       summary = { taskCount: 0, constraintCount: 0, model: null, error: errorMessage(err), tasks: [], constraints: [] };
     }
-    if (summary.error === null && summary.taskCount > 0) {
+    if (summary.error === null) {
       log.info(`EXTRACT_FROM_TRANSCRIPT (${summary.model ?? 'unknown model'}): ${summary.taskCount} task(s), ${summary.constraintCount} constraint(s)`);
       return extractStage({
         engine: cortexEngine(summary.model ?? 'unknown model'),
@@ -492,12 +492,13 @@ export class LiveBackend implements Backend {
     const previous = await this.previousPlan(req);
     const extractStarted = perfNow();
     const { context, parsed } = mergeRerankContext(previous.reasoning.context, req.context);
-    const extract = rerankExtractStage(req.context.question, parsed, req.context, elapsed(extractStarted));
+    let extract = rerankExtractStage(req.context.question, parsed, req.context, elapsed(extractStarted));
     let captureId = previous.capture_id;
     if (followup) {
       // the follow-up capture carries the previous capture's constraints (fixed blocks, cash, time window) forward
       if (previous.capture_id && previous.capture_id !== followup.capture_id) await this.repo.copyConstraints(previous.capture_id, followup.capture_id);
       captureId = followup.capture_id;
+      extract = await this.extractForCapture(followup, this.clock.now(), req.context.question ?? null);
     }
     const outcome = await this.planWithFallback({
       studentId: req.student_id,

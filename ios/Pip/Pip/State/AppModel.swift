@@ -210,6 +210,7 @@ final class AppModel {
 
     /// Re-runs prioritization for the chosen free time. No restart, rebuild or re-recording.
     func updateContext(_ preset: ContextPreset) {
+        guard Config.isDemoMode else { contextPlan = nil; return }
         contextPreset = preset
         contextRevision += 1
         let revision = contextRevision
@@ -293,6 +294,7 @@ final class AppModel {
     }
 
     func refreshContextHistory() async {
+        guard Config.isDemoMode else { contextHistory = []; return }
         guard !isOffline else { return }
         if let response = try? await call({ service in try await service.contextHistory() }) {
             contextHistory = response.entries
@@ -394,7 +396,7 @@ final class AppModel {
 
     // MARK: Text
 
-    func sendText(_ text: String) {
+    func sendText(_ text: String, onAccepted: (() -> Void)? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, pipState != .thinking else { return }
         recorder.discard()
@@ -408,7 +410,9 @@ final class AppModel {
                 let response = try await self.call { service in
                     try await service.captureText(trimmed, followupPlanID: nil)
                 }
+                guard revision == self.planRevision else { return }
                 self.handleCapture(response, isFollowUp: false, typed: true, revision: revision)
+                if !response.needsText { onAccepted?() }
             } catch {
                 self.handleFailure(error, revision: revision)
             }
@@ -419,16 +423,32 @@ final class AppModel {
         sendText(draft)
     }
 
-    /// Rerank the current plan with a typed follow-up (context.question).
-    func followUp(text: String) {
+    /// Extract newly mentioned tasks and constraints, then rerank the current plan.
+    func followUp(text: String, onAccepted: (() -> Void)? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         guard let planID = currentPlan?.planId else {
-            sendText(trimmed)
+            sendText(trimmed, onAccepted: onAccepted)
             return
         }
         guard pipState != .thinking else { return }
-        rerankCurrentPlan(planID: planID, context: RerankContextInput(question: trimmed))
+        recorder.discard()
+        speaker.stop()
+        pipState = .thinking
+        let revision = beginPlanRequest(revealing: false)
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let response = try await self.call { service in
+                    try await service.captureText(trimmed, followupPlanID: planID)
+                }
+                guard revision == self.planRevision else { return }
+                self.handleCapture(response, isFollowUp: true, typed: true, revision: revision)
+                if !response.needsText { onAccepted?() }
+            } catch {
+                self.handleFailure(error, revision: revision)
+            }
+        }
     }
 
     /// Hold-to-talk on the follow-up bar: a voice capture with followup_plan_id.
@@ -594,6 +614,7 @@ final class AppModel {
 
     /// Demo helper: the timer runs out in 3 seconds.
     func skipFocusToEnd() {
+        guard Config.isDemoMode else { return }
         guard var session = focusSession else { return }
         session.endsAt = Date().addingTimeInterval(3)
         focusSession = session
@@ -624,6 +645,7 @@ final class AppModel {
     }
 
     func refreshPivotLog() async {
+        guard Config.isDemoMode else { pivotLog = []; return }
         if let response = try? await call({ service in try await service.pivotLog() }) {
             pivotLog = response.entries
         }
@@ -669,6 +691,7 @@ final class AppModel {
     }
 
     func resetDemo() async {
+        guard Config.isDemoMode else { return }
         do {
             _ = try await call { service in
                 try await service.resetDemo()
@@ -726,7 +749,9 @@ final class AppModel {
         await connect()
         isTestingConnection = false
         if isOffline {
-            connectionStatus = "Couldn't reach \(trimmed). Using local fallback data."
+            connectionStatus = Config.isDemoMode
+                ? "Couldn't reach \(trimmed). Developer demo data is active."
+                : "Couldn't reach \(trimmed). Reconnect to create or update plans."
         } else {
             connectionStatus = "Connected to \(trimmed)."
             await refreshAll()
