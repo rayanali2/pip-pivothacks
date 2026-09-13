@@ -16,25 +16,20 @@ struct TaskDetailView: View {
 
     private var facts: [Fact] {
         var result: [Fact] = []
-        if let task {
-            result.append(Fact(label: "You said", value: task.rawText))
-            result.append(Fact(label: "Pip heard", value: task.normalizedText))
-        }
         if let category = task?.category ?? item.category {
             result.append(Fact(label: "Category", value: category.label))
         }
         if let dueAt = task?.dueAt ?? item.dueAt, let when = DateFormatting.dayTime(dueAt) {
-            var value = when
-            if let relative = DateFormatting.relative(dueAt, from: planNow) {
-                value += " (\(relative))"
-            }
-            result.append(Fact(label: "Due", value: value))
+            result.append(Fact(label: "Due", value: when))
         }
         if let money = task?.moneyAtRisk ?? item.moneyAtRisk, money > 0 {
             result.append(Fact(label: "Money at risk", value: MoneyFormatting.dollars(money)))
         }
         if let minutes = task?.estMinutes ?? item.estMinutes {
-            result.append(Fact(label: "Estimated", value: "\(minutes) min"))
+            result.append(Fact(label: "Full task", value: "\(minutes) min"))
+        }
+        if let minutes = PlanVisuals.windowMinutes(item) {
+            result.append(Fact(label: "This block", value: "\(minutes) min"))
         }
         if let deferCount = task?.deferCount, deferCount > 0 {
             result.append(Fact(label: "Deferred", value: deferCount == 1 ? "once" : "\(deferCount) times"))
@@ -50,8 +45,9 @@ struct TaskDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 18) {
                 titleBlock.pipCard(emphasized: true)
+                if item.taskId != nil { actionsSection }
                 if !facts.isEmpty {
                     factsSection.pipCard()
                 }
@@ -61,8 +57,9 @@ struct TaskDetailView: View {
                 if !item.curve.isEmpty {
                     curveSection.pipCard()
                 }
-                if item.taskId != nil {
-                    actionsSection
+                if let task {
+                    PlanDisclosure(title: "Original capture", text: task.rawText + "\n\n" + task.normalizedText, symbol: "text.bubble")
+                        .pipCard()
                 }
             }
             .padding(20)
@@ -76,48 +73,48 @@ struct TaskDetailView: View {
     }
 
     private var titleBlock: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(item.title)
-                .font(.title2.bold())
-            Text(item.action)
-                .font(.body)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(item.why)
-                .font(.subheadline)
-                .foregroundStyle(PipDesign.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            if let flag = item.flag {
-                FlagPill(flag: flag)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                TaskGlyph(category: task?.category ?? item.category, fixed: item.kind == .fixedBlock, size: 54)
+                Spacer()
+                if let flag = item.flag { FlagPill(flag: flag) }
             }
+            Text(item.title).font(.system(.title, design: .rounded, weight: .bold))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(item.action).font(.subheadline).foregroundStyle(PipDesign.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            PlanDisclosure(title: "Why this task", text: item.why, symbol: "sparkle")
         }
     }
 
     private var factsSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), alignment: .topLeading)], alignment: .leading, spacing: 18) {
             ForEach(facts) { fact in
-                VStack(spacing: 0) {
-                    if fact.id != facts.first?.id {
-                        Divider()
-                    }
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        Text(fact.label)
-                            .font(.subheadline)
-                            .foregroundStyle(PipDesign.secondary)
-                            .frame(width: 110, alignment: .leading)
-                        Text(fact.value)
-                            .font(.subheadline)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(.vertical, 10)
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(fact.label, systemImage: factSymbol(fact.label))
+                        .font(.caption).foregroundStyle(PipDesign.secondary)
+                    Text(fact.value).font(.subheadline.weight(.semibold))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
             }
+        }
+    }
+
+    private func factSymbol(_ label: String) -> String {
+        switch label {
+        case "Due": return "calendar"
+        case "Money at risk": return "creditcard"
+        case "Full task", "This block": return "timer"
+        case "Deferred": return "arrow.uturn.right"
+        default: return "square.grid.2x2"
         }
     }
 
     private var evidenceSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Why this comes first")
+            Text("Priority signals")
                 .font(.headline)
             ForEach(Array(item.evidence.enumerated()), id: \.offset) { pair in
                 EvidenceRow(evidence: pair.element)
@@ -129,25 +126,29 @@ struct TaskDetailView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Cost of waiting")
                 .font(.headline)
-            Text(curveCaption)
-                .font(.footnote)
-                .foregroundStyle(PipDesign.secondary)
+            HStack {
+                PlanTag(text: item.curveKind?.label ?? "Cost curve", symbol: "chart.xyaxis.line")
+                Spacer()
+                Text("If you postpone").font(.caption).foregroundStyle(PipDesign.secondary)
+            }
             CostCurveChart(points: item.curve, hoursToDue: hoursToDue)
                 .frame(height: 200)
         }
     }
 
-    private var curveCaption: String {
-        let kind = item.curveKind?.label ?? "Curve"
-        return "\(kind) curve: how much it costs to postpone this by a number of hours."
-    }
-
     private var actionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
+            ViewThatFits(in: .horizontal) {
             HStack(spacing: 10) {
                 actionButton("Done", systemImage: "checkmark", kind: .done)
                 actionButton("Defer", systemImage: "clock.arrow.circlepath", kind: .deferTask)
                 actionButton("Drop", systemImage: "xmark", kind: .drop)
+            }
+            VStack(spacing: 10) {
+                actionButton("Done", systemImage: "checkmark", kind: .done)
+                actionButton("Defer", systemImage: "clock.arrow.circlepath", kind: .deferTask)
+                actionButton("Drop", systemImage: "xmark", kind: .drop)
+            }
             }
             if let message = model.actionMessage {
                 Text(message)
@@ -173,23 +174,29 @@ struct TaskDetailView: View {
 private struct EvidenceRow: View {
     let evidence: RuleEvidence
 
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: evidence.fired ? "checkmark.circle.fill" : "circle")
-                .font(.title3)
-                .foregroundStyle(evidence.fired ? Color.accentColor : Color.secondary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(evidence.label)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(evidence.fired ? Color.primary : Color.secondary)
-                Text(evidence.detail)
-                    .font(.footnote)
-                    .foregroundStyle(PipDesign.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+    private var shortLabel: String {
+        switch evidence.rule {
+        case .irreversibleLoss: return "Deadline & money"
+        case .fixedBlockCollision: return "Class overlap"
+        case .basicNeeds: return "Basic needs"
+        case .fitsWindow: return "Time fit"
+        case .academicDeadline: return "Academic deadline"
+        case .unknown: return evidence.label
         }
-        .accessibilityElement(children: .combine)
     }
+
+    var body: some View {
+        DisclosureGroup {
+            Text(evidence.detail).font(.footnote).foregroundStyle(PipDesign.secondary)
+                .fixedSize(horizontal: false, vertical: true).padding(.vertical, 6)
+        } label: {
+            Label(shortLabel, systemImage: evidence.fired ? "checkmark.circle.fill" : "minus.circle")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(evidence.fired ? PipDesign.accent : PipDesign.secondary)
+                .frame(minHeight: 36)
+        }
+    }
+
 }
 
 private struct CostCurveChart: View {
@@ -212,6 +219,9 @@ private struct CostCurveChart: View {
     var body: some View {
         Chart {
             ForEach(points) { point in
+                AreaMark(x: .value("Hours", point.hours), y: .value("Cost", point.cost))
+                    .interpolationMethod(.monotone)
+                    .foregroundStyle(PipDesign.accent.opacity(0.08))
                 LineMark(
                     x: .value("Hours", point.hours),
                     y: .value("Cost", point.cost)
