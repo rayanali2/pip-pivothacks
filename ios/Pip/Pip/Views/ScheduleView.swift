@@ -3,13 +3,25 @@ import SwiftUI
 struct ScheduleView: View {
     @Environment(AppModel.self) private var model
     @State private var showingAddBlock = false
+    @State private var timelineFilter: TimelineFilter = .all
+    private enum TimelineFilter { case all, fixed, flexible }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    SectionHeading(title: "A little structure. More room.", subtitle: "Classes stay fixed. Your tasks can move.")
-                        .listRowBackground(Color.clear)
+                    HStack(spacing: 10) {
+                        Button { timelineFilter = timelineFilter == .fixed ? .all : .fixed } label: {
+                            PlanTag(text: "\(todayBlocks.count) fixed", symbol: timelineFilter == .fixed ? "lock.fill" : "lock")
+                        }
+                        .accessibilityLabel(timelineFilter == .fixed ? "Show all blocks" : "Show fixed classes")
+                        Button { timelineFilter = timelineFilter == .flexible ? .all : .flexible } label: {
+                            PlanTag(text: "\(flexibleItems.count) flexible", symbol: timelineFilter == .flexible ? "checkmark.circle.fill" : "circle.dotted")
+                        }
+                        .accessibilityLabel(timelineFilter == .flexible ? "Show all blocks" : "Show flexible tasks")
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(Color.clear)
                 }
                 todaySection
                 unscheduledSection
@@ -59,7 +71,9 @@ struct ScheduleView: View {
             guard let startsAt = item.startsAt, startsAt.count >= 16 else { return nil }
             return DayEntry(id: item.itemId, time: String(startsAt.dropFirst(11).prefix(5)), block: nil, item: item)
         }
-        return (fixed + flexible).sorted { $0.time == $1.time ? $0.id < $1.id : $0.time < $1.time }
+        return (fixed + flexible)
+            .filter { timelineFilter == .all || (timelineFilter == .fixed ? $0.block != nil : $0.item != nil) }
+            .sorted { $0.time == $1.time ? $0.id < $1.id : $0.time < $1.time }
     }
 
     private var todaySection: some View {
@@ -73,7 +87,13 @@ struct ScheduleView: View {
             } else {
                 ForEach(dayEntries) { entry in
                     if let block = entry.block {
-                        TimelineBlockRow(block: block)
+                        DisclosureGroup {
+                            Label(block.location ?? "No location added", systemImage: "mappin.and.ellipse")
+                                .font(.subheadline).foregroundStyle(PipDesign.secondary)
+                                .padding(.vertical, 8)
+                        } label: {
+                            TimelineBlockRow(block: block)
+                        }
                     } else if let item = entry.item {
                         NavigationLink {
                             TaskDetailView(item: item, task: model.task(for: item), planNow: model.currentPlan?.reasoning.now)
@@ -84,24 +104,25 @@ struct ScheduleView: View {
                 }
             }
         } header: {
-            Text("Your day · in time order")
+            Text(timelineFilter == .all ? "Day flow" : timelineFilter == .fixed ? "Fixed classes · tap filter to clear" : "Flexible tasks · tap filter to clear")
         } footer: {
-            Text("Class times are fixed. Task times are suggested windows.")
+            Label("Fixed classes · flexible task windows", systemImage: "info.circle")
         }
     }
 
     @ViewBuilder
     private var unscheduledSection: some View {
         let unscheduled = flexibleItems.filter { $0.startsAt == nil }
-        if !unscheduled.isEmpty {
-            Section("Still to find a window") {
+        if !unscheduled.isEmpty && timelineFilter != .fixed {
+            Section("Find a window") {
                 ForEach(unscheduled) { item in
                     NavigationLink {
                         TaskDetailView(item: item, task: model.task(for: item), planNow: model.currentPlan?.reasoning.now)
                     } label: {
                         VStack(alignment: .leading, spacing: 6) {
                             Text(item.title).font(.subheadline.weight(.semibold))
-                            Text(item.why).font(.footnote).foregroundStyle(PipDesign.secondary)
+                            Text(item.timeLabel(relativeTo: model.currentPlan?.reasoning.now) ?? "Unscheduled")
+                                .font(.caption).foregroundStyle(PipDesign.secondary)
                             if let flag = item.flag { FlagPill(flag: flag) }
                         }
                         .padding(.vertical, 6)
@@ -198,15 +219,10 @@ private struct TimelineBlockRow: View {
                 .frame(width: 3, height: 36)
 
             VStack(alignment: .leading, spacing: 5) {
-                Label("FIXED CLASS", systemImage: "lock.fill")
+                Label("FIXED", systemImage: "lock.fill")
                     .font(.caption2.weight(.bold)).foregroundStyle(PipDesign.accent)
                 Text(block.title)
                     .font(.body.weight(.medium))
-                if let location = block.location, !location.isEmpty {
-                    Text(location)
-                        .font(.subheadline)
-                        .foregroundStyle(PipDesign.secondary)
-                }
             }
         }
         .padding(.vertical, 10)
@@ -228,13 +244,14 @@ private struct TimelineTaskRow: View {
                 }
             }
             .frame(width: typeSize.isAccessibilitySize ? nil : 76, alignment: .leading)
-            Circle().strokeBorder(PipDesign.accent, lineWidth: 1.5)
-                .frame(width: 7, height: 7).padding(.top, 6)
+            TaskGlyph(category: item.category, size: 34)
             VStack(alignment: .leading, spacing: 5) {
-                Text("FLEXIBLE WINDOW").font(.caption2.weight(.bold)).foregroundStyle(PipDesign.accent)
+                Text(item.category?.label.uppercased() ?? "FLEXIBLE").font(.caption2.weight(.bold)).foregroundStyle(PipDesign.accent)
                 Text(item.title).font(.body.weight(.medium))
-                Text(item.action).font(.footnote).foregroundStyle(PipDesign.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if let minutes = PlanVisuals.windowMinutes(item) {
+                    Label("\(minutes) min", systemImage: "timer")
+                        .font(.caption).foregroundStyle(PipDesign.secondary)
+                }
             }
         }
         .padding(.vertical, 10)

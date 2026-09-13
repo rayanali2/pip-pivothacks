@@ -3,6 +3,7 @@ import SwiftUI
 struct HistoryView: View {
     @Environment(AppModel.self) private var model
     @State private var mode: HistoryMode = .decisions
+    @State private var actionsOnly = false
 
     enum HistoryMode: Hashable {
         case decisions
@@ -13,8 +14,18 @@ struct HistoryView: View {
     var body: some View {
         NavigationStack {
             List {
-                SectionHeading(title: "Small steps, remembered.", subtitle: "What you chose, and why it made sense.")
-                    .listRowSeparator(.hidden).listRowBackground(Color.clear)
+                HStack(spacing: 12) {
+                    Button { actionsOnly = false; mode = .decisions } label: {
+                        PlanTag(text: "\(model.history.count) decisions", symbol: "square.stack")
+                    }
+                    .accessibilityLabel("Show all decisions")
+                    Button { actionsOnly.toggle(); mode = .decisions } label: {
+                        PlanTag(text: "\(model.history.reduce(0) { $0 + $1.actions.count }) actions", symbol: actionsOnly ? "checkmark.circle.fill" : "checkmark.circle", tint: PipDesign.positive)
+                    }
+                    .accessibilityLabel(actionsOnly ? "Show all decisions" : "Show decisions with actions")
+                }
+                .buttonStyle(.plain)
+                .listRowSeparator(.hidden).listRowBackground(Color.clear)
                 if mode != .pivots {
                 Picker("View", selection: $mode) {
                     Text("Decisions").tag(HistoryMode.decisions)
@@ -56,7 +67,7 @@ struct HistoryView: View {
     }
 
     private var sortedHistory: [HistoryEntry] {
-        model.history.sorted { first, second in
+        model.history.filter { !actionsOnly || !$0.actions.isEmpty }.sorted { first, second in
             let a = DateFormatting.parse(first.createdAt) ?? Date.distantPast
             let b = DateFormatting.parse(second.createdAt) ?? Date.distantPast
             return a > b
@@ -69,8 +80,8 @@ struct HistoryView: View {
 
     @ViewBuilder
     private var decisionRows: some View {
-        if model.history.isEmpty {
-            PipStatusView(symbol: "clock.arrow.circlepath", title: "Your first step starts here", detail: "Talk to Pip to make a plan. Your decisions and actions will be saved here.")
+        if sortedHistory.isEmpty {
+            PipStatusView(symbol: "clock.arrow.circlepath", title: actionsOnly ? "No actions yet" : "Your story starts here", detail: actionsOnly ? "Tap Start now on a task." : "Create a plan to save your first decision.")
                 .listRowSeparator(.hidden)
         } else {
             ForEach(sortedHistory) { entry in
@@ -82,7 +93,7 @@ struct HistoryView: View {
     @ViewBuilder
     private var contextRows: some View {
         if model.contextHistory.isEmpty {
-            PipStatusView(symbol: "clock", title: "No context checks yet", detail: "Check your time before class on Today to save a recommendation and its context.")
+            PipStatusView(symbol: "clock", title: "No checks yet", detail: "Run a time check on Today.")
                 .listRowSeparator(.hidden)
         } else {
             ForEach(model.contextHistory) { entry in
@@ -118,41 +129,27 @@ private struct ContextHistoryRow: View {
     var body: some View {
         let plan = entry.plan
         let s = plan.snapshot
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                PlanTag(text: "\(s.availableMinutes) min", symbol: "timer")
+                Spacer()
                 Text(DateFormatting.dayTime(entry.createdAt) ?? entry.createdAt)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(PipDesign.secondary)
-                Spacer(minLength: 4)
-                Text("\(plan.resultState.label) · \(plan.provenance.label)")
-                    .font(.caption2)
-                    .foregroundStyle(PipDesign.secondary)
+                    .font(.caption).foregroundStyle(PipDesign.secondary)
             }
-            Text(inputLine(s))
-                .font(.footnote.monospacedDigit())
-                .foregroundStyle(PipDesign.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Text("Do now: \(plan.doNow?.label ?? "nothing fits")")
-                .font(.body.weight(.semibold))
-            Text(plan.reason)
-                .font(.footnote)
-                .foregroundStyle(PipDesign.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            Text(plan.doNow?.label ?? "No fit").font(.headline)
             if !entry.actions.isEmpty {
-                Label("Started · \(entry.actions.count == 1 ? "1 action" : "\(entry.actions.count) actions")", systemImage: "checkmark.circle")
-                    .font(.footnote)
-                    .foregroundStyle(PipDesign.secondary)
+                PlanTag(text: "Started", symbol: "checkmark", tint: PipDesign.positive)
             }
+            DisclosureGroup {
+                Text(inputLine(s)).font(.footnote).padding(.top, 6)
+                Text(plan.reason).font(.footnote).padding(.vertical, 6)
+                Text("\(plan.resultState.label) · \(plan.provenance.label)").font(.caption2)
+            } label: {
+                Label("Context snapshot", systemImage: "slider.horizontal.3").font(.caption.weight(.medium))
+            }
+            .foregroundStyle(PipDesign.secondary)
         }
         .padding(.vertical, 12)
-        .padding(.leading, 16)
-        .overlay(alignment: .leading) {
-            VStack(spacing: 5) {
-                Circle().fill(PipDesign.accent).frame(width: 7, height: 7)
-                Rectangle().fill(PipDesign.line).frame(width: 1)
-            }
-            .padding(.vertical, 14)
-        }
     }
 
     private func inputLine(_ s: ContextSnapshot) -> String {
@@ -177,58 +174,43 @@ private struct DecisionRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text(DateFormatting.dayTime(entry.createdAt) ?? entry.createdAt)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(PipDesign.secondary)
-                Text(entry.trigger.label)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
-                Spacer(minLength: 4)
-
-            }
-
-            if let title = entry.doNowTitle {
-                Text("Do now: \(title)")
-                    .font(.body.weight(.semibold))
-            }
-
-            if let quote {
-                Text("“\(quote)”").font(.subheadline).foregroundStyle(PipDesign.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if let context = entry.context {
-                HStack(spacing: 12) {
-                    if let minutes = context.availableMinutes {
-                        Label("\(minutes) min available", systemImage: "clock")
-                    }
-                    if let cash = context.cashAvailable {
-                        Label(MoneyFormatting.dollars(cash), systemImage: "wallet.bifold")
-                    }
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: entry.trigger == .rerank ? "arrow.triangle.2.circlepath" : "text.bubble.fill")
+                .font(.subheadline).foregroundStyle(PipDesign.accent)
+                .frame(width: 36, height: 36).background(PipDesign.mist, in: Circle())
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text(entry.trigger == .rerank ? "PLAN UPDATED" : "PLAN CREATED")
+                        .font(.caption2.weight(.bold)).tracking(0.8).foregroundStyle(PipDesign.accent)
+                    Spacer()
+                    Text(DateFormatting.dayTime(entry.createdAt) ?? entry.createdAt)
+                        .font(.caption2).foregroundStyle(PipDesign.secondary)
                 }
-                .font(.footnote).foregroundStyle(PipDesign.accent)
-            }
-
-            Text(entry.changed)
-                .font(.footnote)
+                Text(entry.doNowTitle ?? "Plan saved").font(.headline)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let minutes = entry.context?.availableMinutes {
+                    PlanTag(text: "\(minutes) min available", symbol: "timer")
+                }
+                if let last = entry.actions.last {
+                    Label(last.kind.pastTenseLabel, systemImage: last.kind == .drop ? "xmark.circle" : "checkmark.circle")
+                        .font(.caption.weight(.semibold)).foregroundStyle(last.kind == .done || last.kind == .startNow ? PipDesign.positive : PipDesign.secondary)
+                }
+                DisclosureGroup {
+                    if let quote { Text("“\(quote)”").font(.subheadline).padding(.top, 6) }
+                    if let cash = entry.context?.cashAvailable {
+                        Label(MoneyFormatting.dollars(cash), systemImage: "creditcard").font(.footnote)
+                    }
+                    Text(entry.changed).font(.footnote).padding(.vertical, 6)
+                    ForEach(Array(entry.actions.enumerated()), id: \.offset) { pair in
+                        Text(Self.actionText(pair.element)).font(.footnote).padding(.bottom, 4)
+                    }
+                } label: {
+                    Text("Decision details").font(.caption.weight(.medium)).frame(minHeight: 30)
+                }
                 .foregroundStyle(PipDesign.secondary)
-
-            ForEach(Array(entry.actions.enumerated()), id: \.offset) { pair in
-                Label(Self.actionText(pair.element), systemImage: "checkmark.circle")
-                    .font(.footnote)
-                    .foregroundStyle(PipDesign.secondary)
             }
         }
-        .padding(.vertical, 12)
-        .padding(.leading, 16)
-        .overlay(alignment: .leading) {
-            VStack(spacing: 5) {
-                Circle().fill(PipDesign.accent).frame(width: 7, height: 7)
-                Rectangle().fill(PipDesign.line).frame(width: 1)
-            }
-            .padding(.vertical, 14)
-        }
+        .padding(.vertical, 14)
     }
 
     private static func actionText(_ action: HistoryAction) -> String {
@@ -250,6 +232,7 @@ private struct PivotRow: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Pivot \(entry.pivotNumber)")
                 .font(.headline)
+            DisclosureGroup("Explore pivot") {
             PivotField(label: "Revealed", text: entry.revealed)
             PivotField(label: "Assumption changed", text: entry.assumptionChanged)
             PivotField(label: "Response", text: entry.response)
@@ -259,6 +242,7 @@ private struct PivotRow: View {
                     .font(.subheadline)
                     .italic()
                     .foregroundStyle(PipDesign.secondary)
+            }
             }
         }
         .padding(.vertical, 12)

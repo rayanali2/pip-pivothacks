@@ -9,14 +9,14 @@ struct ContextSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if model.isOffline {
-                PipStatusView(symbol: "wifi.slash", title: "Live context is offline", detail: "Your voice and text plan still works. Connect under Schedule → Server to check time before class.")
+                PipStatusView(symbol: "wifi.slash", title: "Context offline", detail: "Connect in Schedule → Server. Your saved plan still works.")
             } else {
                 if let plan = model.contextPlan {
-                    ContextStrip(plan: plan)
+                    ContextOverview(plan: plan)
                     ContextPresetPicker()
                     if let changeMessage { WhatChangedBanner(headline: changeMessage) }
                     if model.isContextLoading {
-                        PipStatusView(symbol: "", title: "Checking your new window", detail: "The recommendation below is from your previous check.", loading: true)
+                        PipStatusView(symbol: "", title: "Updating…", detail: "Previous result shown below.", loading: true)
                     }
                     ContextDoNowCard(plan: plan)
                         .disabled(model.isContextLoading)
@@ -24,7 +24,7 @@ struct ContextSection: View {
                         .id(plan.snapshot.requestId)
                         .transition(.opacity)
                 } else if model.isContextLoading {
-                    PipStatusView(symbol: "", title: "Checking your context", detail: "Finding what fits before class…", loading: true)
+                    PipStatusView(symbol: "", title: "Time check", detail: "Finding a fit…", loading: true)
                 } else {
                     HStack {
                         Text("Context plan unavailable.")
@@ -44,8 +44,8 @@ struct ContextSection: View {
             let previous = old.doNow?.label ?? "Nothing fits"
             let current = new.doNow?.label ?? "Nothing fits"
             changeMessage = previous == current
-                ? "Checked again with \(new.snapshot.availableMinutes) minutes. \(current) still comes first."
-                : "With \(new.snapshot.availableMinutes) minutes, \(current) replaces \(previous)."
+                ? "\(new.snapshot.availableMinutes) min · \(current) stays first."
+                : "\(previous) → \(current) · \(new.snapshot.availableMinutes) min"
         }
     }
 }
@@ -56,7 +56,7 @@ struct ContextPresetPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Update context · free time before class")
+            Text("Available time")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(PipDesign.secondary)
             if typeSize.isAccessibilitySize {
@@ -128,72 +128,82 @@ struct ContextDoNowCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Do this now", systemImage: "sparkle")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.accentColor)
-
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                PlanTag(text: plan.resultState.label, symbol: plan.doNow == nil ? "clock.badge.exclamationmark" : "checkmark.shield", tint: plan.resultState == .feasible ? PipDesign.accent : PipDesign.warning)
+                Spacer()
+                Image(systemName: "scope").font(.title2).foregroundStyle(PipDesign.accent)
+            }
             if let doNow = plan.doNow {
-                Text(doNow.label)
-                    .font(.system(.title, design: .rounded, weight: .bold))
+                Text(doNow.label).font(PipDesign.heading)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityLabel("Recommendation: \(doNow.label)")
-
-                Text(Self.scopeText(doNow))
-                    .font(.footnote.monospacedDigit())
-                    .foregroundStyle(PipDesign.secondary)
-
-                Text(plan.reason)
-                    .font(.subheadline).foregroundStyle(PipDesign.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Button {
-                    model.startContextNow()
-                } label: {
+                HStack(spacing: 8) {
+                    PlanTag(text: "\(doNow.minutes) min", symbol: "timer")
+                    PlanTag(text: doNow.completesTask ? "Full task" : doNow.kind == "prep" ? "Prep only" : "First step", symbol: "flag")
+                }
+                WindowFitView(used: doNow.minutes, available: plan.snapshot.availableMinutes, compact: true)
+                Button { model.startContextNow() } label: {
                     Label(isStarted ? "Started" : "Start now", systemImage: isStarted ? "checkmark" : "play.fill")
                 }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(isStarted)
+                .buttonStyle(PrimaryButtonStyle()).disabled(isStarted)
                 .accessibilityLabel(isStarted ? "Started \(doNow.label)" : "Start now: \(doNow.label)")
-
+                PlanDisclosure(title: "Why this fits", text: plan.reason, symbol: "checkmark.shield")
                 if let target = plan.overrunTarget {
-                    Button("What if this takes 10 minutes longer?") {
-                        model.previewOverrun()
-                    }
-                    .font(.footnote.weight(.medium))
-                    .frame(minHeight: 44)
-                    .accessibilityHint("Checks \(target.label) with 10 extra minutes without changing your plan")
-
-                    if let scenario = model.contextScenario, model.contextScenarioRequestID == plan.snapshot.requestId {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Label("10 minutes longer", systemImage: "clock.badge.exclamationmark")
-                                .font(.subheadline.weight(.semibold))
-                            Text(scenario.summary)
-                                .font(.footnote)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Text("Preview only · your plan is unchanged")
-                                .font(.caption)
-                                .foregroundStyle(PipDesign.secondary)
+                    Button { model.previewOverrun() } label: {
+                        HStack {
+                            Label("Test +10 min", systemImage: "clock.badge.questionmark")
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
                         }
-                        .padding(14)
-                        .background(Color.white, in: RoundedRectangle(cornerRadius: 14))
-                        .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(PipDesign.accent.opacity(0.3)) }
+                        .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+                    }
+                    .accessibilityHint("Checks \(target.label) with 10 extra minutes without changing your plan")
+                    if let scenario = model.contextScenario, model.contextScenarioRequestID == plan.snapshot.requestId {
+                        VStack(alignment: .leading, spacing: 12) {
+                            PlanTag(text: scenario.violations.isEmpty ? "Still fits" : "Window exceeded", symbol: scenario.violations.isEmpty ? "checkmark.circle" : "exclamationmark.triangle", tint: scenario.violations.isEmpty ? PipDesign.positive : PipDesign.warning)
+                            HStack {
+                                Label(ContextTimeFormatting.wallTime(scenario.completesAt), systemImage: "flag.checkered")
+                                Spacer()
+                                Text("\(scenario.slackMinutes) min slack").monospacedDigit()
+                            }.font(.caption.weight(.medium))
+                            PlanDisclosure(title: "Preview details", text: scenario.summary)
+                            Text("Preview only · plan unchanged").font(.caption2).foregroundStyle(PipDesign.secondary)
+                        }
+                        .padding(14).background(Color.white, in: RoundedRectangle(cornerRadius: 18))
                     }
                 }
             } else {
-                Text("Nothing fits right now").font(PipDesign.heading)
-                Text(plan.reason).font(.subheadline).foregroundStyle(PipDesign.secondary)
+                Text("No fit right now").font(PipDesign.heading)
+                PlanDisclosure(title: "See why", text: plan.reason)
             }
-
         }
         .pipCard(emphasized: true)
     }
+}
 
-    private static func scopeText(_ doNow: ContextCandidate) -> String {
-        switch doNow.kind {
-        case "prep": return "\(doNow.minutes) min · prepares \(doNow.title); does not complete it"
-        case "first_step": return doNow.completesTask ? "\(doNow.minutes) min · finishes \(doNow.title)" : "\(doNow.minutes) min · first step of \(doNow.title), not the whole task"
-        default: return "\(doNow.minutes) min · completes \(doNow.title)"
+private struct ContextOverview: View {
+    let plan: ContextPlan
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("\(plan.snapshot.availableMinutes)")
+                    .font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
+                Text("min free").font(.subheadline).foregroundStyle(PipDesign.secondary)
+                Spacer()
+                Image(systemName: "clock").font(.title2).foregroundStyle(PipDesign.accent)
+            }
+            if let next = plan.snapshot.nextCommitment {
+                Label("\(next.title) · \(ContextTimeFormatting.wallTime(next.startsAt))", systemImage: "graduationcap")
+                    .font(.subheadline.weight(.medium))
+            }
+            Text("Now \(ContextTimeFormatting.wallTime(plan.snapshot.now)) · demo clock")
+                .font(.caption).foregroundStyle(PipDesign.secondary)
+            if !plan.warnings.isEmpty {
+                PlanDisclosure(title: "\(plan.warnings.count) risk alert\(plan.warnings.count == 1 ? "" : "s")", text: plan.warnings.joined(separator: "\n\n"), symbol: "exclamationmark.triangle")
+                    .tint(PipDesign.warning)
+            }
+            Text(plan.provenance.label).font(.caption2).foregroundStyle(PipDesign.secondary)
         }
     }
 }

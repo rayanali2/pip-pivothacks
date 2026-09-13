@@ -20,7 +20,8 @@ enum GoogleCalendarLink {
             URLQueryItem(name: "details", value: "Added from Pip.")
         ]
         // '+' must be encoded because web query parsers can interpret it as a space.
-        url?.percentEncodedQuery = url?.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
+        let encodedQuery = url?.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
+        url?.percentEncodedQuery = encodedQuery
         return url?.url
     }
 }
