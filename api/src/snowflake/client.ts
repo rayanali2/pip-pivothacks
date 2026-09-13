@@ -271,8 +271,8 @@ export class SnowflakeClient implements SqlExecutor {
 
   private async open(): Promise<Connection> {
     const s = this.settings;
-    if (!s.account || !s.user || !s.password || !s.warehouse) {
-      throw new Error('Snowflake is not configured (SNOWFLAKE_ACCOUNT, SNOWFLAKE_USER, SNOWFLAKE_PASSWORD, SNOWFLAKE_WAREHOUSE)');
+    if (!s.account || !s.user || (!s.token && !s.password) || !s.warehouse) {
+      throw new Error('Snowflake is not configured (SNOWFLAKE_ACCOUNT, SNOWFLAKE_USER, SNOWFLAKE_TOKEN or SNOWFLAKE_PASSWORD, SNOWFLAKE_WAREHOUSE)');
     }
     const zone = validateTimezone(this.timezone);
     const sdk = await loadSdk();
@@ -280,7 +280,9 @@ export class SnowflakeClient implements SqlExecutor {
     const conn = sdk.createConnection({
       account: s.account,
       username: s.user,
-      password: s.password,
+      ...(s.token
+        ? { authenticator: 'PROGRAMMATIC_ACCESS_TOKEN', token: s.token }
+        : { password: s.password! }),
       warehouse: s.warehouse,
       database: s.database,
       schema: s.schema,

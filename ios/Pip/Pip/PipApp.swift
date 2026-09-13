@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 @main
 struct PipApp: App {
@@ -9,6 +10,7 @@ struct PipApp: App {
             RootView()
                 .environment(model)
                 .task {
+                    UNUserNotificationCenter.current().delegate = PipNotificationDelegate.shared
                     await model.bootstrap()
                 }
         }

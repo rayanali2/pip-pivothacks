@@ -8,6 +8,7 @@ export interface SnowflakeSettings {
   account: string | null;
   user: string | null;
   password: string | null;
+  token: string | null;
   warehouse: string | null;
   database: string;
   schema: string;
@@ -16,7 +17,7 @@ export interface SnowflakeSettings {
 
 export interface AppConfig {
   snowflake: SnowflakeSettings;
-  /** account + user + password + warehouse are all present */
+  /** account + user + (token or password) + warehouse are all present */
   snowflakeConfigured: boolean;
   /** MOCK_MODE as written in the environment */
   mockModeRequested: boolean;
@@ -51,13 +52,14 @@ export function loadConfig(env: Env): AppConfig {
     account: str(env, 'SNOWFLAKE_ACCOUNT'),
     user: str(env, 'SNOWFLAKE_USER'),
     password: str(env, 'SNOWFLAKE_PASSWORD'),
+    token: str(env, 'SNOWFLAKE_TOKEN'),
     warehouse: str(env, 'SNOWFLAKE_WAREHOUSE'),
     database: str(env, 'SNOWFLAKE_DATABASE') ?? 'PIP',
     schema: str(env, 'SNOWFLAKE_SCHEMA') ?? 'APP',
     role: str(env, 'SNOWFLAKE_ROLE'),
   };
   const snowflakeConfigured =
-    snowflake.account !== null && snowflake.user !== null && snowflake.password !== null && snowflake.warehouse !== null;
+    snowflake.account !== null && snowflake.user !== null && (snowflake.token !== null || snowflake.password !== null) && snowflake.warehouse !== null;
   const mockModeRequested = bool(env, 'MOCK_MODE', false);
   const mode: Mode = mockModeRequested || !snowflakeConfigured ? 'mock' : 'live';
 
@@ -98,7 +100,7 @@ export function getConfig(): AppConfig {
   setLogLevel(cfg.logLevel);
   if (!cfg.mockModeRequested && !cfg.snowflakeConfigured) {
     log.warn(
-      'Snowflake is not configured (need SNOWFLAKE_ACCOUNT, SNOWFLAKE_USER, SNOWFLAKE_PASSWORD, SNOWFLAKE_WAREHOUSE); running in mock mode.',
+      'Snowflake is not configured (need SNOWFLAKE_ACCOUNT, SNOWFLAKE_USER, SNOWFLAKE_TOKEN or SNOWFLAKE_PASSWORD, SNOWFLAKE_WAREHOUSE); running in mock mode.',
     );
   }
   const DEMO_NOW = process.env.DEMO_NOW;
