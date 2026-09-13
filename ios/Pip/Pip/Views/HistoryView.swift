@@ -27,25 +27,30 @@ struct HistoryView: View {
                 .buttonStyle(.plain)
                 .listRowSeparator(.hidden).listRowBackground(Color.clear)
                 if mode != .pivots {
-                Picker("View", selection: $mode) {
-                    Text("Decisions").tag(HistoryMode.decisions)
-                    Text("Context").tag(HistoryMode.context)
-                }
-                .pickerStyle(.segmented)
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
+                    Section {
+                        Picker("View", selection: $mode) {
+                            Text("Decisions").tag(HistoryMode.decisions)
+                            Text("Context").tag(HistoryMode.context)
+                        }
+                        .pickerStyle(.segmented)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                    }
                 }
 
-                switch mode {
-                case .decisions:
-                    decisionRows
-                case .context:
-                    contextRows
-                case .pivots:
-                    pivotRows
+                Section {
+                    switch mode {
+                    case .decisions:
+                        decisionRows
+                    case .context:
+                        contextRows
+                    case .pivots:
+                        pivotRows
+                    }
                 }
             }
             .listStyle(.insetGrouped)
+            .listSectionSpacing(.compact)
             .scrollContentBackground(.hidden)
             .pipScreen()
             .navigationTitle(mode == .pivots ? "Pivot Log" : "History")
@@ -54,7 +59,8 @@ struct HistoryView: View {
                     Button(mode == .pivots ? "Decisions" : "Pivot Log") {
                         mode = mode == .pivots ? .decisions : .pivots
                     }
-                    .font(.subheadline)
+                    .font(.subheadline.weight(.semibold))
+                    .tint(PipDesign.accent)
                 }
             }
             .refreshable {
@@ -81,11 +87,15 @@ struct HistoryView: View {
     @ViewBuilder
     private var decisionRows: some View {
         if sortedHistory.isEmpty {
-            PipStatusView(symbol: "clock.arrow.circlepath", title: actionsOnly ? "No actions yet" : "Your story starts here", detail: actionsOnly ? "Tap Start now on a task." : "Create a plan to save your first decision.")
+            PipStatusView(symbol: "clock.arrow.circlepath", title: actionsOnly ? "No actions yet" : "No decisions yet", detail: actionsOnly ? "Tap Start now on a task." : "Talk to Pip to make your first plan.")
+                .padding(.vertical, 6)
                 .listRowSeparator(.hidden)
+                .listRowBackground(PipDesign.surface)
         } else {
             ForEach(sortedHistory) { entry in
                 DecisionRow(entry: entry)
+                    .listRowBackground(PipDesign.surface)
+                    .listRowSeparatorTint(PipDesign.line)
             }
         }
     }
@@ -93,11 +103,15 @@ struct HistoryView: View {
     @ViewBuilder
     private var contextRows: some View {
         if model.contextHistory.isEmpty {
-            PipStatusView(symbol: "clock", title: "No checks yet", detail: "Run a time check on Today.")
+            PipStatusView(symbol: "clock", title: "No context checks yet", detail: "Run a time check on Today.")
+                .padding(.vertical, 6)
                 .listRowSeparator(.hidden)
+                .listRowBackground(PipDesign.surface)
         } else {
             ForEach(model.contextHistory) { entry in
                 ContextHistoryRow(entry: entry)
+                    .listRowBackground(PipDesign.surface)
+                    .listRowSeparatorTint(PipDesign.line)
             }
         }
     }
@@ -105,12 +119,15 @@ struct HistoryView: View {
     @ViewBuilder
     private var pivotRows: some View {
         if model.pivotLog.isEmpty {
-            Text("No pivots logged yet.")
-                .foregroundStyle(PipDesign.secondary)
+            PipStatusView(symbol: "arrow.triangle.branch", title: "No pivots yet", detail: "Logged pivots show up here.")
+                .padding(.vertical, 6)
                 .listRowSeparator(.hidden)
+                .listRowBackground(PipDesign.surface)
         } else {
             ForEach(sortedPivots) { entry in
                 PivotRow(entry: entry)
+                    .listRowBackground(PipDesign.surface)
+                    .listRowSeparatorTint(PipDesign.line)
             }
         }
     }
@@ -121,6 +138,55 @@ struct HistoryView: View {
         await model.refreshContextHistory()
     }
 }
+
+// MARK: - Timeline
+
+/// Accent dot with a hairline rule down the leading edge of each history row.
+private struct HistoryTimelineMark: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .padding(.vertical, 12)
+            .padding(.leading, 16)
+            .overlay(alignment: .leading) {
+                VStack(spacing: 4) {
+                    Circle().fill(PipDesign.accent).frame(width: 7, height: 7)
+                    Rectangle().fill(PipDesign.line).frame(width: 1)
+                }
+                .padding(.top, 20)
+                .padding(.bottom, 12)
+                .accessibilityHidden(true)
+            }
+    }
+}
+
+private extension View {
+    func historyTimelineMark() -> some View {
+        modifier(HistoryTimelineMark())
+    }
+}
+
+/// Time on the left, then short metadata pills; wraps on small screens and large text.
+private struct HistoryRowHeader<Pills: View>: View {
+    let time: String
+    let pills: Pills
+
+    init(time: String, @ViewBuilder pills: () -> Pills) {
+        self.time = time
+        self.pills = pills()
+    }
+
+    var body: some View {
+        PipFlowLayout(spacing: 8) {
+            Text(time)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(PipDesign.secondary)
+                .padding(.vertical, 5)
+            pills
+        }
+    }
+}
+
+// MARK: - Rows
 
 /// The input context snapshot next to the recommendation it produced.
 private struct ContextHistoryRow: View {
@@ -137,6 +203,7 @@ private struct ContextHistoryRow: View {
                     .font(.caption).foregroundStyle(PipDesign.secondary)
             }
             Text(plan.doNow?.label ?? "No fit").font(.headline)
+                .fixedSize(horizontal: false, vertical: true)
             if !entry.actions.isEmpty {
                 PlanTag(text: "Started", symbol: "checkmark", tint: PipDesign.positive)
             }
@@ -160,6 +227,33 @@ private struct ContextHistoryRow: View {
         parts.append(s.statedMinutes.map { "free \(s.availableMinutes) (said \($0), computed \(s.computedFreeMinutes))" } ?? "free \(s.availableMinutes) min")
         parts.append("cash \(ContextMoneyFormatting.amount(s.money.cashCents, s.money.currency)), reserve \(ContextMoneyFormatting.amount(s.money.reserveCents, s.money.currency))")
         return parts.joined(separator: " · ")
+    }
+
+    private static func stateTint(_ state: ContextResultState) -> Color {
+        switch state {
+        case .feasible: return PipDesign.positive
+        case .conditional: return PipDesign.warning
+        case .conflict: return PipDesign.danger
+        case .needsReview: return PipDesign.warning
+        }
+    }
+
+    private static func stateSymbol(_ state: ContextResultState) -> String {
+        switch state {
+        case .feasible: return "checkmark.circle"
+        case .conditional: return "exclamationmark.circle"
+        case .conflict: return "xmark.circle"
+        case .needsReview: return "questionmark.circle"
+        }
+    }
+
+    private static func provenanceSymbol(_ provenance: ContextProvenance) -> String {
+        switch provenance {
+        case .liveSnowflake: return "snowflake"
+        case .localFallback: return "internaldrive"
+        case .seededDemo: return "tray"
+        case .backupRecording: return "waveform"
+        }
     }
 }
 
@@ -229,7 +323,7 @@ private struct PivotRow: View {
     let entry: PivotLogEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Pivot \(entry.pivotNumber)")
                 .font(.headline)
             DisclosureGroup("Explore pivot") {
@@ -242,18 +336,11 @@ private struct PivotRow: View {
                     .font(.subheadline)
                     .italic()
                     .foregroundStyle(PipDesign.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             }
         }
-        .padding(.vertical, 12)
-        .padding(.leading, 16)
-        .overlay(alignment: .leading) {
-            VStack(spacing: 5) {
-                Circle().fill(PipDesign.accent).frame(width: 7, height: 7)
-                Rectangle().fill(PipDesign.line).frame(width: 1)
-            }
-            .padding(.vertical, 14)
-        }
+        .historyTimelineMark()
     }
 }
 
@@ -262,10 +349,9 @@ private struct PivotField: View {
     let text: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(label)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(PipDesign.secondary)
+                .pipEyebrow()
             Text(text)
                 .font(.subheadline)
                 .fixedSize(horizontal: false, vertical: true)
