@@ -27,7 +27,7 @@ function throwingBackend(): Backend {
   };
 }
 
-describe('PipService fallback', () => {
+describe('UniMateService fallback', () => {
   it('answers from memory with source fallback when every live call throws', async () => {
     const service = liveServiceWith(throwingBackend());
 

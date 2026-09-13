@@ -6,7 +6,7 @@ import request from 'supertest';
 import { createApp } from '../src/app';
 import { createClock } from '../src/clock';
 import { MemoryBackend } from '../src/backends/memory';
-import { PipService } from '../src/service';
+import { UniMateService } from '../src/service';
 import { setLogLevel } from '../src/log';
 
 const OUT_DIR = path.resolve(__dirname, '..', '..', 'ios', 'Pip', 'Pip', 'Resources', 'Offline');
@@ -34,7 +34,7 @@ async function main(): Promise<void> {
   setLogLevel('warn');
   const clock = createClock({ demoNow: null, mode: 'mock' }); // pinned at 13:13 today
   const memory = new MemoryBackend({ clock, snowflakeConfigured: false });
-  const app = createApp(new PipService('mock', memory));
+  const app = createApp(new UniMateService('mock', memory));
   const agent = request(app);
   mkdirSync(OUT_DIR, { recursive: true });
 

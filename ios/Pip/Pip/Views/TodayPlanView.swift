@@ -9,8 +9,8 @@ struct TodayPlanView: View {
         NavigationStack {
             content
                 .navigationTitle("Today")
-                .pipScreen()
-                .sheet(isPresented: $showReminders) { PipRemindersView(plan: model.currentPlan) }
+                .uniMateScreen()
+                .sheet(isPresented: $showReminders) { UniMateRemindersView(plan: model.currentPlan) }
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Button { showReminders = true } label: { Image(systemName: "bell") }
@@ -22,7 +22,7 @@ struct TodayPlanView: View {
                         } label: {
                             Image(systemName: model.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                         }
-                        .accessibilityLabel(model.isMuted ? "Unmute Pip" : "Mute Pip")
+                        .accessibilityLabel(model.isMuted ? "Unmute UniMate" : "Mute UniMate")
                     }
                 }
         }
@@ -40,9 +40,9 @@ struct TodayPlanView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     ContextSection()
-                    PipStatusView(symbol: "text.bubble", title: "A fresh start", detail: "Tell Pip your day to build a plan.")
-                        .pipCard()
-                    Button("Talk to Pip") { model.selectedTab = .home }
+                    UniMateStatusView(symbol: "text.bubble", title: "A fresh start", detail: "Tell UniMate your day to build a plan.")
+                        .uniMateCard()
+                    Button("Talk to UniMate") { model.selectedTab = .home }
                         .buttonStyle(PrimaryButtonStyle())
                 }
                 .padding(.horizontal, 20)
@@ -71,9 +71,9 @@ private struct PlanScrollView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
-                if model.pipState == .thinking {
-                    PipStatusView(symbol: "", title: "Updating…", detail: "Checking your new window.", loading: true)
-                        .pipCard()
+                if model.uniMateState == .thinking {
+                    UniMateStatusView(symbol: "", title: "Updating…", detail: "Checking your new window.", loading: true)
+                        .uniMateCard()
                 }
 
                 if let doNow = plan.doNow {
@@ -95,7 +95,7 @@ private struct PlanScrollView: View {
                     Label("Time check", systemImage: "clock.arrow.circlepath")
                         .font(.subheadline.weight(.semibold))
                 }
-                .pipCard()
+                .uniMateCard()
 
                 if let next = plan.next {
                     PlanSectionList(title: "Next", items: [next], planNow: plan.reasoning.now)
@@ -119,7 +119,7 @@ private struct PlanScrollView: View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("YOUR FLOW").font(.caption2.weight(.bold)).tracking(1.6)
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
                 Text("\(plan.allItems.filter { $0.kind != .fixedBlock }.count) tasks · \(plan.allItems.filter { $0.kind == .fixedBlock }.count) fixed")
                     .font(.subheadline.weight(.medium))
             }
@@ -136,9 +136,9 @@ private struct PlanScrollView: View {
                     Text(pair.element.text).font(.footnote).padding(.vertical, 5)
                 }
             } label: {
-                PlanTag(text: "\(plan.reasoning.warnings.count) risk alert\(plan.reasoning.warnings.count == 1 ? "" : "s")", symbol: "exclamationmark.triangle", tint: PipDesign.warning)
+                PlanTag(text: "\(plan.reasoning.warnings.count) risk alert\(plan.reasoning.warnings.count == 1 ? "" : "s")", symbol: "exclamationmark.triangle", tint: UniMateDesign.warning)
             }
-            .tint(PipDesign.warning)
+            .tint(UniMateDesign.warning)
         }
         if let answer = plan.reasoning.answer, !answer.isEmpty {
             PlanDisclosure(title: "Plan notes", text: answer)
@@ -153,7 +153,7 @@ struct WhatChangedBanner: View {
     var body: some View {
         PlanDisclosure(title: "Plan updated", text: headline, symbol: "arrow.triangle.2.circlepath")
             .padding(.horizontal, 14).padding(.vertical, 4)
-            .background(PipDesign.mist, in: RoundedRectangle(cornerRadius: 14))
+            .background(UniMateDesign.mist, in: RoundedRectangle(cornerRadius: 14))
     }
 
 }
@@ -208,13 +208,13 @@ struct DoNowCard: View {
 
             Text(item.why)
                 .font(.subheadline)
-                .foregroundStyle(PipDesign.secondary)
+                .foregroundStyle(UniMateDesign.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let dueText {
                 Text(dueText)
                     .font(.footnote.monospacedDigit())
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
             }
 
             Button {
@@ -229,7 +229,7 @@ struct DoNowCard: View {
             if isStarted {
                 Label("Started · saved to History", systemImage: "checkmark")
                     .font(.footnote)
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
                     .transition(.opacity)
             }
 
@@ -246,10 +246,10 @@ struct DoNowCard: View {
                 }
             }
         }
-        .pipCard(emphasized: true)
+        .uniMateCard(emphasized: true)
         .overlay {
-            RoundedRectangle(cornerRadius: PipDesign.radius)
-                .strokeBorder(isHighlighted ? PipDesign.accent : .clear, lineWidth: 2)
+            RoundedRectangle(cornerRadius: UniMateDesign.radius)
+                .strokeBorder(isHighlighted ? UniMateDesign.accent : .clear, lineWidth: 2)
         }
     }
 }
@@ -263,10 +263,10 @@ private struct PlanSectionList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text(title).font(PipDesign.heading)
+                Text(title).font(UniMateDesign.heading)
                 Spacer()
                 Text("\(items.count)").font(.caption.weight(.semibold))
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
             }
             .padding(.bottom, 10)
 
@@ -292,7 +292,7 @@ private struct PlanSectionList: View {
         } else {
             DisclosureGroup {
                 Text(item.action).font(.subheadline).padding(.vertical, 6)
-                Text(item.why).font(.footnote).foregroundStyle(PipDesign.secondary)
+                Text(item.why).font(.footnote).foregroundStyle(UniMateDesign.secondary)
             } label: {
                 PlanRow(item: item, planNow: planNow, highlighted: highlighted, showsChevron: false)
             }
@@ -311,25 +311,25 @@ struct PlanRow: View {
             TaskGlyph(category: item.category, fixed: item.kind == .fixedBlock)
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.kind == .fixedBlock ? "FIXED" : item.category?.label.uppercased() ?? "TASK")
-                    .font(.caption2.weight(.bold)).tracking(0.8).foregroundStyle(PipDesign.secondary)
-                Text(item.title).font(.body.weight(.semibold)).foregroundStyle(PipDesign.ink)
+                    .font(.caption2.weight(.bold)).tracking(0.8).foregroundStyle(UniMateDesign.secondary)
+                Text(item.title).font(.body.weight(.semibold)).foregroundStyle(UniMateDesign.ink)
                 Text(item.timeLabel(relativeTo: planNow) ?? "When you have space")
-                    .font(.footnote.monospacedDigit()).foregroundStyle(PipDesign.accent)
+                    .font(.footnote.monospacedDigit()).foregroundStyle(UniMateDesign.accent)
                 if let flag = item.flag { FlagPill(flag: flag) }
                 if highlighted {
                     Label("Moved", systemImage: "arrow.up.arrow.down")
-                        .font(.caption.weight(.semibold)).foregroundStyle(PipDesign.accent)
+                        .font(.caption.weight(.semibold)).foregroundStyle(UniMateDesign.accent)
                 }
             }
             Spacer(minLength: 0)
             if showsChevron {
                 Image(systemName: "chevron.right").font(.caption.weight(.semibold))
-                    .foregroundStyle(PipDesign.secondary).padding(.top, 10)
+                    .foregroundStyle(UniMateDesign.secondary).padding(.top, 10)
             }
         }
         .padding(16)
-        .background(highlighted ? PipDesign.mist : Color.white, in: RoundedRectangle(cornerRadius: 18))
-        .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(PipDesign.line) }
+        .background(highlighted ? UniMateDesign.mist : Color.white, in: RoundedRectangle(cornerRadius: 18))
+        .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(UniMateDesign.line) }
         .padding(.vertical, 5)
         .contentShape(Rectangle())
     }
@@ -354,7 +354,7 @@ private struct FollowUpBar: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            if model.pipState == .listening && model.isFollowUpRecording { RecordingStatus() }
+            if model.uniMateState == .listening && model.isFollowUpRecording { RecordingStatus() }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(chips, id: \.label) { chip in
@@ -377,16 +377,16 @@ private struct FollowUpBar: View {
                     .padding(.vertical, 9)
                     .background(
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color.pipField)
+                            .fill(Color.uniMateField)
                     )
 
                 HoldToTalkButton(
-                    isListening: model.pipState == .listening && model.isFollowUpRecording,
+                    isListening: model.uniMateState == .listening && model.isFollowUpRecording,
                     diameter: 44,
                     onPress: { model.startFollowUpVoice() },
                     onRelease: { model.stopRecordingAndSend() }
                 )
-                .disabled(model.pipState == .thinking)
+                .disabled(model.uniMateState == .thinking)
 
                 Button {
                     send()
@@ -401,7 +401,7 @@ private struct FollowUpBar: View {
             .padding(.horizontal, 16)
         }
         .padding(.vertical, 10)
-        .background(PipDesign.background)
+        .background(UniMateDesign.background)
     }
 
     private func send() {
@@ -431,7 +431,7 @@ private struct TodayFocusCard: View {
             HStack {
                 Label(started ? "IN MOTION" : "UP FIRST", systemImage: started ? "checkmark.circle.fill" : "sparkle")
                     .font(.caption.weight(.bold)).tracking(1)
-                    .foregroundStyle(started ? PipDesign.positive : PipDesign.accent)
+                    .foregroundStyle(started ? UniMateDesign.positive : UniMateDesign.accent)
                 Spacer()
                 TaskGlyph(category: item.category, size: 42)
             }
@@ -443,7 +443,7 @@ private struct TodayFocusCard: View {
             }
             if let window = plan.reasoning.freeWindow, let next = window.nextBlockTitle {
                 Label("Before \(next)", systemImage: "graduationcap")
-                    .font(.caption).foregroundStyle(PipDesign.secondary)
+                    .font(.caption).foregroundStyle(UniMateDesign.secondary)
             }
             Button { model.startNow(item: item) } label: {
                 Label(started ? "Started" : "Start now", systemImage: started ? "checkmark" : "play.fill")
@@ -465,10 +465,10 @@ private struct TodayFocusCard: View {
             }
             PlanDisclosure(title: "Why first", text: item.why, symbol: "sparkle")
         }
-        .pipCard(emphasized: true)
+        .uniMateCard(emphasized: true)
         .overlay {
-            RoundedRectangle(cornerRadius: PipDesign.radius)
-                .strokeBorder(model.highlightedItemIDs.contains(item.itemId) ? PipDesign.accent : .clear, lineWidth: 2)
+            RoundedRectangle(cornerRadius: UniMateDesign.radius)
+                .strokeBorder(model.highlightedItemIDs.contains(item.itemId) ? UniMateDesign.accent : .clear, lineWidth: 2)
         }
     }
 }

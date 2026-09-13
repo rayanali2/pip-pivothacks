@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import SwiftUI
 
-enum PipState: Equatable {
+enum UniMateState: Equatable {
     case idle
     case listening
     case thinking
@@ -53,8 +53,8 @@ enum AppTab: Hashable {
 @MainActor
 @Observable
 final class AppModel {
-    // MARK: Pip / capture
-    var pipState: PipState = .idle
+    // MARK: UniMate / capture
+    var uniMateState: UniMateState = .idle
     var transcript: String = ""
     var draft: String = ""
     var needsText = false
@@ -67,7 +67,7 @@ final class AppModel {
     var currentPlan: Plan?
     var previousPlan: Plan?
     var lastDiff: PlanDiff?
-    var tasks: [PipTask] = []
+    var tasks: [UniMateTask] = []
     var highlightedItemIDs: Set<String> = []
     /// item_id of the item whose "Start now" was just recorded.
     var startNowConfirmation: String?
@@ -132,10 +132,10 @@ final class AppModel {
     }
 
     var isBusy: Bool {
-        pipState == .thinking
+        uniMateState == .thinking
     }
 
-    func task(for item: PlanItem) -> PipTask? {
+    func task(for item: PlanItem) -> UniMateTask? {
         guard let taskID = item.taskId else { return nil }
         return tasks.first(where: { $0.taskId == taskID })
     }
@@ -263,7 +263,7 @@ final class AppModel {
     // MARK: Voice
 
     func startRecording(followUp: Bool = false) {
-        guard pipState != .listening, pipState != .thinking else { return }
+        guard uniMateState != .listening, uniMateState != .thinking else { return }
 
         switch recorder.permission {
         case .undetermined:
@@ -290,25 +290,25 @@ final class AppModel {
         do {
             try recorder.start()
             isFollowUpRecording = followUp
-            pipState = .listening
+            uniMateState = .listening
         } catch {
-            pipState = .idle
+            uniMateState = .idle
             showError(error)
         }
     }
 
     func stopRecordingAndSend() {
-        guard pipState == .listening else { return }
+        guard uniMateState == .listening else { return }
         let followUp = isFollowUpRecording
         isFollowUpRecording = false
 
         guard let fileURL = recorder.stop() else {
-            pipState = .idle
+            uniMateState = .idle
             return
         }
 
         let followupPlanID: String? = followUp ? currentPlan?.planId : nil
-        pipState = .thinking
+        uniMateState = .thinking
 
         Task { [weak self] in
             guard let self else { return }
@@ -329,10 +329,10 @@ final class AppModel {
 
     func sendText(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, pipState != .thinking else { return }
+        guard !trimmed.isEmpty, uniMateState != .thinking else { return }
         recorder.discard()
         speaker.stop()
-        pipState = .thinking
+        uniMateState = .thinking
 
         Task { [weak self] in
             guard let self else { return }
@@ -359,10 +359,10 @@ final class AppModel {
             sendText(trimmed)
             return
         }
-        guard pipState != .thinking else { return }
+        guard uniMateState != .thinking else { return }
         recorder.discard()
         speaker.stop()
-        pipState = .thinking
+        uniMateState = .thinking
 
         Task { [weak self] in
             guard let self else { return }
@@ -392,7 +392,7 @@ final class AppModel {
 
     func record(kind: ActionKind, item: PlanItem) {
         guard let planID = currentPlan?.planId else {
-            showError(PipError.noPlan)
+            showError(UniMateError.noPlan)
             return
         }
         let taskID = item.taskId
@@ -423,8 +423,8 @@ final class AppModel {
         Config.isMuted = isMuted
         if isMuted {
             speaker.stop()
-            if pipState == .speaking {
-                pipState = .idle
+            if uniMateState == .speaking {
+                uniMateState = .idle
             }
         }
     }
@@ -516,7 +516,7 @@ final class AppModel {
             highlightedItemIDs = []
             startNowConfirmation = nil
             actionMessage = nil
-            pipState = .idle
+            uniMateState = .idle
             await refreshAll()
             connectionStatus = "Demo data reset."
         } catch {
@@ -584,7 +584,7 @@ final class AppModel {
         }
     }
 
-    private func call<T>(_ operation: (any PipService) async throws -> T) async throws -> T {
+    private func call<T>(_ operation: (any UniMateService) async throws -> T) async throws -> T {
         do {
             let result = try await router.run(operation)
             isOffline = router.isOffline
@@ -609,7 +609,7 @@ final class AppModel {
                 transcript = response.transcript
                 draft = response.transcript
             } else {
-                showBanner("Pip couldn't hear that. Try typing your question.")
+                showBanner("UniMate couldn't hear that. Try typing your question.")
             }
             requestTextFocus()
             speakOrIdle("I couldn't quite hear that. Can you type it instead?")
@@ -678,24 +678,24 @@ final class AppModel {
 
     private func speakOrIdle(_ text: String) {
         if !isMuted && speaker.speak(text) {
-            pipState = .speaking
+            uniMateState = .speaking
         } else {
-            pipState = .idle
+            uniMateState = .idle
         }
     }
 
     private func handleSpeakingChanged(_ speaking: Bool) {
         if speaking {
-            if pipState == .idle {
-                pipState = .speaking
+            if uniMateState == .idle {
+                uniMateState = .speaking
             }
-        } else if pipState == .speaking {
-            pipState = .idle
+        } else if uniMateState == .speaking {
+            uniMateState = .idle
         }
     }
 
     private func handleFailure(_ error: Error) {
-        pipState = .idle
+        uniMateState = .idle
         showError(error)
     }
 

@@ -4,7 +4,7 @@ import SwiftUI
 struct TaskDetailView: View {
     @Environment(AppModel.self) private var model
     let item: PlanItem
-    let task: PipTask?
+    let task: UniMateTask?
     /// reasoning.now of the plan the item came from (scenario clock); nil uses the real clock.
     var planNow: String? = nil
 
@@ -46,25 +46,25 @@ struct TaskDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                titleBlock.pipCard(emphasized: true)
+                titleBlock.uniMateCard(emphasized: true)
                 if item.taskId != nil { actionsSection }
                 if !facts.isEmpty {
-                    factsSection.pipCard()
+                    factsSection.uniMateCard()
                 }
                 if !item.evidence.isEmpty {
-                    evidenceSection.pipCard()
+                    evidenceSection.uniMateCard()
                 }
                 if !item.curve.isEmpty {
-                    curveSection.pipCard()
+                    curveSection.uniMateCard()
                 }
                 if let task {
                     PlanDisclosure(title: "Original capture", text: task.rawText + "\n\n" + task.normalizedText, symbol: "text.bubble")
-                        .pipCard()
+                        .uniMateCard()
                 }
             }
             .padding(20)
         }
-        .pipScreen()
+        .uniMateScreen()
         .navigationTitle(item.title)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -81,7 +81,7 @@ struct TaskDetailView: View {
             }
             Text(item.title).font(.system(.title, design: .rounded, weight: .bold))
                 .fixedSize(horizontal: false, vertical: true)
-            Text(item.action).font(.subheadline).foregroundStyle(PipDesign.secondary)
+            Text(item.action).font(.subheadline).foregroundStyle(UniMateDesign.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             PlanDisclosure(title: "Why this task", text: item.why, symbol: "sparkle")
         }
@@ -92,7 +92,7 @@ struct TaskDetailView: View {
             ForEach(facts) { fact in
                 VStack(alignment: .leading, spacing: 6) {
                     Label(fact.label, systemImage: factSymbol(fact.label))
-                        .font(.caption).foregroundStyle(PipDesign.secondary)
+                        .font(.caption).foregroundStyle(UniMateDesign.secondary)
                     Text(fact.value).font(.subheadline.weight(.semibold))
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -129,7 +129,7 @@ struct TaskDetailView: View {
             HStack {
                 PlanTag(text: item.curveKind?.label ?? "Cost curve", symbol: "chart.xyaxis.line")
                 Spacer()
-                Text("If you postpone").font(.caption).foregroundStyle(PipDesign.secondary)
+                Text("If you postpone").font(.caption).foregroundStyle(UniMateDesign.secondary)
             }
             CostCurveChart(points: item.curve, hoursToDue: hoursToDue)
                 .frame(height: 200)
@@ -153,7 +153,7 @@ struct TaskDetailView: View {
             if let message = model.actionMessage {
                 Text(message)
                     .font(.footnote)
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
             }
         }
     }
@@ -187,12 +187,12 @@ private struct EvidenceRow: View {
 
     var body: some View {
         DisclosureGroup {
-            Text(evidence.detail).font(.footnote).foregroundStyle(PipDesign.secondary)
+            Text(evidence.detail).font(.footnote).foregroundStyle(UniMateDesign.secondary)
                 .fixedSize(horizontal: false, vertical: true).padding(.vertical, 6)
         } label: {
             Label(shortLabel, systemImage: evidence.fired ? "checkmark.circle.fill" : "minus.circle")
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(evidence.fired ? PipDesign.accent : PipDesign.secondary)
+                .foregroundStyle(evidence.fired ? UniMateDesign.accent : UniMateDesign.secondary)
                 .frame(minHeight: 36)
         }
     }
@@ -221,7 +221,7 @@ private struct CostCurveChart: View {
             ForEach(points) { point in
                 AreaMark(x: .value("Hours", point.hours), y: .value("Cost", point.cost))
                     .interpolationMethod(.monotone)
-                    .foregroundStyle(PipDesign.accent.opacity(0.08))
+                    .foregroundStyle(UniMateDesign.accent.opacity(0.08))
                 LineMark(
                     x: .value("Hours", point.hours),
                     y: .value("Cost", point.cost)

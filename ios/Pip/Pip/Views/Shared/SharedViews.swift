@@ -3,8 +3,8 @@ import UIKit
 
 extension Color {
     /// Neutral grouped surface used for pills, chips and the transcript card.
-    static let pipSurface = PipDesign.mist
-    static let pipField = Color.white
+    static let uniMateSurface = UniMateDesign.mist
+    static let uniMateField = Color.white
 }
 
 /// "Snowflake" (with snowflake symbol) or "Local fallback".
@@ -19,8 +19,8 @@ struct SourceLabel: View {
         .font(.caption.weight(.medium))
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(PipDesign.mist, in: Capsule())
-        .foregroundStyle(PipDesign.secondary)
+        .background(UniMateDesign.mist, in: Capsule())
+        .foregroundStyle(UniMateDesign.secondary)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Source: \(source.label)")
     }
@@ -41,7 +41,7 @@ struct FreeWindowPill: View {
         .font(.subheadline.weight(.medium))
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
-        .background(Capsule().fill(Color.pipSurface))
+        .background(Capsule().fill(Color.uniMateSurface))
     }
 }
 
@@ -102,10 +102,10 @@ struct ChipButtonStyle: ButtonStyle {
         configuration.label
             .font(.subheadline)
             .frame(minHeight: 28)
-            .foregroundStyle(PipDesign.ink)
+            .foregroundStyle(UniMateDesign.ink)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Capsule().fill(Color.pipSurface))
+            .background(Capsule().fill(Color.uniMateSurface))
             .opacity(configuration.isPressed ? 0.6 : 1)
     }
 }
@@ -175,7 +175,7 @@ struct BannerView: View {
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(PipDesign.secondary)
+                    .foregroundStyle(UniMateDesign.secondary)
                     .frame(width: 44, height: 44)
             }
             .accessibilityLabel("Dismiss")

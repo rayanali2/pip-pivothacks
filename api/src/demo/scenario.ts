@@ -27,7 +27,7 @@ export const DEMO_PIVOT_SEEDS: ReadonlyArray<Omit<PivotLogEntry, 'created_at'>> 
     response: 'Voice-first ranker with decay curves, with Snowflake as the brain',
     cut: 'None',
     sentence:
-      'Problem 7 is prioritization, so Pip turns a spoken, overloaded day into one ranked next action with Snowflake Cortex as the brain.',
+      'Problem 7 is prioritization, so UniMate turns a spoken, overloaded day into one ranked next action with Snowflake Cortex as the brain.',
   },
   {
     entry_id: 'pivot-2',
@@ -37,7 +37,7 @@ export const DEMO_PIVOT_SEEDS: ReadonlyArray<Omit<PivotLogEntry, 'created_at'>> 
     response: 'Timetable, budget window, free-window math, basic-needs guard; Today Plan replaces the score',
     cut: 'Generic corpus comparison',
     sentence:
-      'We learned our user is a first-time independent student, so Pip now plans around classes, money, and practical life errands — not generic task urgency.',
+      'We learned our user is a first-time independent student, so UniMate now plans around classes, money, and practical life errands — not generic task urgency.',
   },
 ];
 

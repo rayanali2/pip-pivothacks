@@ -26,7 +26,7 @@ import type { MemoryBackend } from './backends/memory';
  * mock: everything is served by the in-memory backend (source 'fallback').
  * live: the live backend first; on ANY error, log a warning and run the same operation on memory (source 'fallback').
  */
-export class PipService {
+export class UniMateService {
   readonly mode: Mode;
   readonly memory: MemoryBackend;
   readonly live: Backend | null;

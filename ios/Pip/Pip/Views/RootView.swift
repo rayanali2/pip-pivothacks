@@ -9,7 +9,7 @@ struct RootView: View {
             NavigationStack {
                 HomeView()
             }
-                .tabItem { Label("Pip", systemImage: "bird") }
+                .tabItem { Label("UniMate", systemImage: "bird") }
                 .tag(AppTab.home)
 
             TodayPlanView()
@@ -24,7 +24,7 @@ struct RootView: View {
                 .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
                 .tag(AppTab.history)
         }
-        .tint(PipDesign.accent)
+        .tint(UniMateDesign.accent)
         .preferredColorScheme(.light)
         .overlay(alignment: .top) {
             if let banner = model.errorBanner {

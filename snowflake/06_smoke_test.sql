@@ -1,5 +1,5 @@
 -- =============================================================================
--- Pip / Snowflake layer  --  06_smoke_test.sql  (optional)
+-- UniMate / Snowflake layer  --  06_smoke_test.sql  (optional)
 -- End-to-end check: text capture -> EXTRACT_FROM_TRANSCRIPT -> BUILD_PLAN at 13:13
 -- -> rerank with 25 minutes -> RECORD_ACTION -> views.
 -- It changes the demo rows (merges tasks, adds constraints, plans and an action):

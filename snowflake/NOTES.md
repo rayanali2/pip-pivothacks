@@ -70,7 +70,7 @@ If your account rejects `PARSE_JSON(?)` inside CALL, use `CALL PIP.APP.BUILD_PLA
   "question": "I only have 25 minutes.",  // optional
   "previous_plan_id": "...",              // optional
   "trigger": "capture" | "rerank" | "seed",
-  "skip_llm": true }                      // optional Pip extension: deterministic plan only, model "sql-prerank"
+  "skip_llm": true }                      // optional UniMate extension: deterministic plan only, model "sql-prerank"
 ```
 - Send `now_local` without an offset. Seconds count: 13:13:30 gives 46 free minutes, not 47.
 - For a rerank, pass the previous plan's `capture_id` if you want that capture's constraints to apply again (fixed_block, cash, time_window). Pass `null` otherwise. Either way, the new PLANS row stores what you pass.

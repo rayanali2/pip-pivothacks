@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum PipDesign {
+enum UniMateDesign {
     static let ink = Color(red: 0.13, green: 0.16, blue: 0.24)
     static let secondary = Color(red: 0.36, green: 0.39, blue: 0.47)
     static let background = Color(red: 0.98, green: 0.975, blue: 0.96)
@@ -16,32 +16,32 @@ enum PipDesign {
     static let heading = Font.system(.title2, design: .rounded, weight: .bold)
 }
 
-private struct PipCardStyle: ViewModifier {
+private struct UniMateCardStyle: ViewModifier {
     var emphasized: Bool
 
     func body(content: Content) -> some View {
         content
-            .padding(PipDesign.page)
+            .padding(UniMateDesign.page)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(emphasized ? PipDesign.mist : Color.white,
-                        in: RoundedRectangle(cornerRadius: PipDesign.radius))
+            .background(emphasized ? UniMateDesign.mist : Color.white,
+                        in: RoundedRectangle(cornerRadius: UniMateDesign.radius))
             .overlay {
-                RoundedRectangle(cornerRadius: PipDesign.radius)
-                    .strokeBorder(emphasized ? PipDesign.accent.opacity(0.2) : PipDesign.line.opacity(0.7))
+                RoundedRectangle(cornerRadius: UniMateDesign.radius)
+                    .strokeBorder(emphasized ? UniMateDesign.accent.opacity(0.2) : UniMateDesign.line.opacity(0.7))
             }
-            .shadow(color: PipDesign.ink.opacity(0.035), radius: 12, y: 5)
+            .shadow(color: UniMateDesign.ink.opacity(0.035), radius: 12, y: 5)
     }
 }
 
 extension View {
-    func pipCard(emphasized: Bool = false) -> some View {
-        modifier(PipCardStyle(emphasized: emphasized))
+    func uniMateCard(emphasized: Bool = false) -> some View {
+        modifier(UniMateCardStyle(emphasized: emphasized))
     }
 
-    func pipScreen() -> some View {
-        background(PipDesign.background.ignoresSafeArea())
-            .foregroundStyle(PipDesign.ink)
-            .toolbarBackground(PipDesign.background, for: .navigationBar)
+    func uniMateScreen() -> some View {
+        background(UniMateDesign.background.ignoresSafeArea())
+            .foregroundStyle(UniMateDesign.ink)
+            .toolbarBackground(UniMateDesign.background, for: .navigationBar)
     }
 }
 
@@ -51,9 +51,9 @@ struct SectionHeading: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(title).font(PipDesign.heading)
+            Text(title).font(UniMateDesign.heading)
             if let subtitle {
-                Text(subtitle).font(.subheadline).foregroundStyle(PipDesign.secondary)
+                Text(subtitle).font(.subheadline).foregroundStyle(UniMateDesign.secondary)
             }
         }
         .accessibilityElement(children: .combine)
@@ -61,7 +61,7 @@ struct SectionHeading: View {
     }
 }
 
-struct PipStatusView: View {
+struct UniMateStatusView: View {
     let symbol: String
     let title: String
     let detail: String
@@ -70,13 +70,13 @@ struct PipStatusView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             if loading {
-                ProgressView().tint(PipDesign.accent)
+                ProgressView().tint(UniMateDesign.accent)
             } else {
-                Image(systemName: symbol).foregroundStyle(PipDesign.accent)
+                Image(systemName: symbol).foregroundStyle(UniMateDesign.accent)
             }
             VStack(alignment: .leading, spacing: 5) {
                 Text(title).font(.subheadline.weight(.semibold))
-                Text(detail).font(.footnote).foregroundStyle(PipDesign.secondary)
+                Text(detail).font(.footnote).foregroundStyle(UniMateDesign.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -122,14 +122,14 @@ struct ContextFacts: View {
         }
         .padding(16)
         .background(Color.white.opacity(0.8), in: RoundedRectangle(cornerRadius: 20))
-        .overlay { RoundedRectangle(cornerRadius: 20).strokeBorder(PipDesign.line) }
+        .overlay { RoundedRectangle(cornerRadius: 20).strokeBorder(UniMateDesign.line) }
     }
 
     private func fact(_ label: String, value: String, detail: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(label).font(.caption2.weight(.bold)).tracking(1).foregroundStyle(PipDesign.secondary)
+            Text(label).font(.caption2.weight(.bold)).tracking(1).foregroundStyle(UniMateDesign.secondary)
             Text(value).font(.subheadline.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
-            if let detail { Text(detail).font(.caption).foregroundStyle(PipDesign.secondary) }
+            if let detail { Text(detail).font(.caption).foregroundStyle(UniMateDesign.secondary) }
         }
         .accessibilityElement(children: .combine)
     }
@@ -140,13 +140,13 @@ struct RecordingStatus: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "waveform").foregroundStyle(PipDesign.accent)
+            Image(systemName: "waveform").foregroundStyle(UniMateDesign.accent)
             Text("Listening").fontWeight(.semibold)
             Text(startedAt, style: .timer).monospacedDigit().fixedSize()
             Text("· release to send")
         }
         .font(.footnote)
-        .foregroundStyle(PipDesign.secondary)
+        .foregroundStyle(UniMateDesign.secondary)
         .accessibilityElement(children: .combine)
     }
 }

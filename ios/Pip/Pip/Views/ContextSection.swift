@@ -9,14 +9,14 @@ struct ContextSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if model.isOffline {
-                PipStatusView(symbol: "wifi.slash", title: "Context offline", detail: "Connect in Schedule → Server. Your saved plan still works.")
+                UniMateStatusView(symbol: "wifi.slash", title: "Context offline", detail: "Connect in Schedule → Server. Your saved plan still works.")
             } else {
                 if let plan = model.contextPlan {
                     ContextOverview(plan: plan)
                     ContextPresetPicker()
                     if let changeMessage { WhatChangedBanner(headline: changeMessage) }
                     if model.isContextLoading {
-                        PipStatusView(symbol: "", title: "Updating…", detail: "Previous result shown below.", loading: true)
+                        UniMateStatusView(symbol: "", title: "Updating…", detail: "Previous result shown below.", loading: true)
                     }
                     ContextDoNowCard(plan: plan)
                         .disabled(model.isContextLoading)
@@ -24,12 +24,12 @@ struct ContextSection: View {
                         .id(plan.snapshot.requestId)
                         .transition(.opacity)
                 } else if model.isContextLoading {
-                    PipStatusView(symbol: "", title: "Time check", detail: "Finding a fit…", loading: true)
+                    UniMateStatusView(symbol: "", title: "Time check", detail: "Finding a fit…", loading: true)
                 } else {
                     HStack {
                         Text("Context plan unavailable.")
                             .font(.subheadline)
-                            .foregroundStyle(PipDesign.secondary)
+                            .foregroundStyle(UniMateDesign.secondary)
                         Button("Retry") {
                             model.updateContext(model.contextPreset)
                         }
@@ -58,7 +58,7 @@ struct ContextPresetPicker: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Available time")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(PipDesign.secondary)
+                .foregroundStyle(UniMateDesign.secondary)
             if typeSize.isAccessibilitySize {
                 presetPicker.pickerStyle(.menu)
             } else {
@@ -109,10 +109,10 @@ struct ContextStrip: View {
                 minutes: snapshot.availableMinutes
             )
             Text("Demo clock · \(plan.provenance.label)")
-                .font(.caption).foregroundStyle(PipDesign.secondary)
+                .font(.caption).foregroundStyle(UniMateDesign.secondary)
             ForEach(Array(plan.warnings.enumerated()), id: \.offset) { pair in
                 Label(pair.element, systemImage: "exclamationmark.triangle")
-                    .font(.footnote).foregroundStyle(PipDesign.warning)
+                    .font(.footnote).foregroundStyle(UniMateDesign.warning)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -130,12 +130,12 @@ struct ContextDoNowCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                PlanTag(text: plan.resultState.label, symbol: plan.doNow == nil ? "clock.badge.exclamationmark" : "checkmark.shield", tint: plan.resultState == .feasible ? PipDesign.accent : PipDesign.warning)
+                PlanTag(text: plan.resultState.label, symbol: plan.doNow == nil ? "clock.badge.exclamationmark" : "checkmark.shield", tint: plan.resultState == .feasible ? UniMateDesign.accent : UniMateDesign.warning)
                 Spacer()
-                Image(systemName: "scope").font(.title2).foregroundStyle(PipDesign.accent)
+                Image(systemName: "scope").font(.title2).foregroundStyle(UniMateDesign.accent)
             }
             if let doNow = plan.doNow {
-                Text(doNow.label).font(PipDesign.heading)
+                Text(doNow.label).font(UniMateDesign.heading)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityLabel("Recommendation: \(doNow.label)")
                 HStack(spacing: 8) {
@@ -161,24 +161,24 @@ struct ContextDoNowCard: View {
                     .accessibilityHint("Checks \(target.label) with 10 extra minutes without changing your plan")
                     if let scenario = model.contextScenario, model.contextScenarioRequestID == plan.snapshot.requestId {
                         VStack(alignment: .leading, spacing: 12) {
-                            PlanTag(text: scenario.violations.isEmpty ? "Still fits" : "Window exceeded", symbol: scenario.violations.isEmpty ? "checkmark.circle" : "exclamationmark.triangle", tint: scenario.violations.isEmpty ? PipDesign.positive : PipDesign.warning)
+                            PlanTag(text: scenario.violations.isEmpty ? "Still fits" : "Window exceeded", symbol: scenario.violations.isEmpty ? "checkmark.circle" : "exclamationmark.triangle", tint: scenario.violations.isEmpty ? UniMateDesign.positive : UniMateDesign.warning)
                             HStack {
                                 Label(ContextTimeFormatting.wallTime(scenario.completesAt), systemImage: "flag.checkered")
                                 Spacer()
                                 Text("\(scenario.slackMinutes) min slack").monospacedDigit()
                             }.font(.caption.weight(.medium))
                             PlanDisclosure(title: "Preview details", text: scenario.summary)
-                            Text("Preview only · plan unchanged").font(.caption2).foregroundStyle(PipDesign.secondary)
+                            Text("Preview only · plan unchanged").font(.caption2).foregroundStyle(UniMateDesign.secondary)
                         }
                         .padding(14).background(Color.white, in: RoundedRectangle(cornerRadius: 18))
                     }
                 }
             } else {
-                Text("No fit right now").font(PipDesign.heading)
+                Text("No fit right now").font(UniMateDesign.heading)
                 PlanDisclosure(title: "See why", text: plan.reason)
             }
         }
-        .pipCard(emphasized: true)
+        .uniMateCard(emphasized: true)
     }
 }
 
@@ -189,21 +189,21 @@ private struct ContextOverview: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("\(plan.snapshot.availableMinutes)")
                     .font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
-                Text("min free").font(.subheadline).foregroundStyle(PipDesign.secondary)
+                Text("min free").font(.subheadline).foregroundStyle(UniMateDesign.secondary)
                 Spacer()
-                Image(systemName: "clock").font(.title2).foregroundStyle(PipDesign.accent)
+                Image(systemName: "clock").font(.title2).foregroundStyle(UniMateDesign.accent)
             }
             if let next = plan.snapshot.nextCommitment {
                 Label("\(next.title) · \(ContextTimeFormatting.wallTime(next.startsAt))", systemImage: "graduationcap")
                     .font(.subheadline.weight(.medium))
             }
             Text("Now \(ContextTimeFormatting.wallTime(plan.snapshot.now)) · demo clock")
-                .font(.caption).foregroundStyle(PipDesign.secondary)
+                .font(.caption).foregroundStyle(UniMateDesign.secondary)
             if !plan.warnings.isEmpty {
                 PlanDisclosure(title: "\(plan.warnings.count) risk alert\(plan.warnings.count == 1 ? "" : "s")", text: plan.warnings.joined(separator: "\n\n"), symbol: "exclamationmark.triangle")
-                    .tint(PipDesign.warning)
+                    .tint(UniMateDesign.warning)
             }
-            Text(plan.provenance.label).font(.caption2).foregroundStyle(PipDesign.secondary)
+            Text(plan.provenance.label).font(.caption2).foregroundStyle(UniMateDesign.secondary)
         }
     }
 }

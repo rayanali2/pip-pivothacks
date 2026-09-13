@@ -8,7 +8,7 @@ import { createClock, toIsoLocal } from '../api/src/clock';
 import { errorMessage } from '../api/src/log';
 import { SnowflakeClient, type Bind } from '../api/src/snowflake/client';
 import { describeCortex, verifyCortex } from '../api/src/snowflake/cortex';
-import { isoToNtz, PipRepo, TS_FMT } from '../api/src/snowflake/repo';
+import { isoToNtz, UniMateRepo, TS_FMT } from '../api/src/snowflake/repo';
 import { demoBaseline, DEMO_SEED_CAPTURE_ID, DEMO_STUDENT_ID, DEMO_TRANSCRIPT } from '../api/src/demo/scenario';
 import { applyDemoCopy } from '../api/src/demo/fixtures';
 import { buildPlan, RANKER_MODEL } from '../api/src/ranker/plan';
@@ -53,7 +53,7 @@ async function main(): Promise<number> {
   const realIso = toIsoLocal(clock.realNow());
   const base = demoBaseline(now, DEMO_STUDENT_ID);
   const client = new SnowflakeClient({ settings: config.snowflake, timezone: config.timezone });
-  const repo = new PipRepo(client);
+  const repo = new UniMateRepo(client);
   const step = (label: string): void => console.log(`- ${label}`);
 
   try {

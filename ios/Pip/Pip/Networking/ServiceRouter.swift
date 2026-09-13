@@ -45,7 +45,7 @@ final class ServiceRouter {
         return try? await offline.health()
     }
 
-    func run<T>(_ operation: (any PipService) async throws -> T) async throws -> T {
+    func run<T>(_ operation: (any UniMateService) async throws -> T) async throws -> T {
         if !isOffline, let remote {
             do {
                 return try await operation(remote)

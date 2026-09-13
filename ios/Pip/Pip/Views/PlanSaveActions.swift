@@ -4,7 +4,7 @@ import EventKit
 import EventKitUI
 import UserNotifications
 
-private struct PipReminder: Codable, Identifiable {
+private struct UniMateReminder: Codable, Identifiable {
     let id: UUID
     var title: String
     var date: Date
@@ -14,21 +14,21 @@ private struct PipReminder: Codable, Identifiable {
 
 @MainActor
 private final class ReminderListStore: ObservableObject {
-    @Published var items: [PipReminder] = []
+    @Published var items: [UniMateReminder] = []
     private let key = "pip.reminders.v1"
     init() {
         if let data = UserDefaults.standard.data(forKey: key),
-           let saved = try? JSONDecoder().decode([PipReminder].self, from: data) { items = saved }
+           let saved = try? JSONDecoder().decode([UniMateReminder].self, from: data) { items = saved }
     }
     func save() {
         if let data = try? JSONEncoder().encode(items) { UserDefaults.standard.set(data, forKey: key) }
     }
-    func remove(_ item: PipReminder) {
+    func remove(_ item: UniMateReminder) {
         cancel(item)
         items.removeAll { $0.id == item.id }
         save()
     }
-    func complete(_ item: PipReminder) {
+    func complete(_ item: UniMateReminder) {
         cancel(item)
         if let index = items.firstIndex(where: { $0.id == item.id }) {
             items[index].completed = true
@@ -36,13 +36,13 @@ private final class ReminderListStore: ObservableObject {
             save()
         }
     }
-    private func cancel(_ item: PipReminder) {
+    private func cancel(_ item: UniMateReminder) {
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: [item.id.uuidString])
         center.removeDeliveredNotifications(withIdentifiers: [item.id.uuidString])
     }
     func add(title: String, date: Date, notify: Bool) async throws {
-        let item = PipReminder(id: UUID(), title: title, date: date, notify: notify, completed: false)
+        let item = UniMateReminder(id: UUID(), title: title, date: date, notify: notify, completed: false)
         if notify {
             guard date > Date() else { throw ReminderFailure.pastDate }
             let center = UNUserNotificationCenter.current()
@@ -53,7 +53,7 @@ private final class ReminderListStore: ObservableObject {
             guard pending.count < 60 else { throw ReminderFailure.tooMany }
             let content = UNMutableNotificationContent()
             content.title = title
-            content.body = "Your Pip reminder is due."
+            content.body = "Your UniMate reminder is due."
             content.sound = .default
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
             let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
@@ -68,7 +68,7 @@ private enum ReminderFailure: LocalizedError {
     case denied, pastDate, tooMany
     var errorDescription: String? {
         switch self {
-        case .denied: return "Notifications are disabled. Enable them for Pip in Settings, or turn off Notify me to save without an alert."
+        case .denied: return "Notifications are disabled. Enable them for UniMate in Settings, or turn off Notify me to save without an alert."
         case .tooMany: return "Your notification list is full. Complete or delete an existing reminder first."
         case .pastDate: return "Choose a future time for the notification."
         }
@@ -95,7 +95,7 @@ struct PlanSaveActions: View {
             .buttonStyle(.bordered)
         }
         .sheet(isPresented: $showCalendar) { CalendarDraftView(plan: plan) }
-        .sheet(isPresented: $showReminders) { PipRemindersView(plan: plan) }
+        .sheet(isPresented: $showReminders) { UniMateRemindersView(plan: plan) }
     }
 }
 
@@ -131,7 +131,7 @@ private struct CalendarDraftView: View {
         NavigationStack {
             Form {
                 if let answer = plan.reasoning.answer {
-                    Section("Pip's advice") { Text(answer) }
+                    Section("UniMate's advice") { Text(answer) }
                 }
                 Section("Review the event") {
                     Menu("Use a planned activity") {
@@ -148,7 +148,7 @@ private struct CalendarDraftView: View {
                     DatePicker("Starts", selection: $start)
                     DatePicker("Ends", selection: $end, in: start...)
                     TextField("Location", text: $location)
-                    Text("For a new event you discussed, enter its name and times. Check travel time and Pip's advice before saving.")
+                    Text("For a new event you discussed, enter its name and times. Check travel time and UniMate's advice before saving.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 Section {
@@ -163,14 +163,14 @@ private struct CalendarDraftView: View {
                     }
                     .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || end <= start)
                     if googleOpened {
-                        Text("Finish by tapping Save in Google Calendar. Pip cannot confirm whether you saved the event.")
+                        Text("Finish by tapping Save in Google Calendar. UniMate cannot confirm whether you saved the event.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     if googleFailed {
                         Text("Could not open Google Calendar. Check your browser settings and try again.")
                             .font(.footnote).foregroundStyle(.red)
                     }
-                    Text("Google Calendar receives the event name, times and location when you open it. Choose your Google account, calendar and notification settings there, then Save. Pip does not read either calendar or update its plan from saved events.")
+                    Text("Google Calendar receives the event name, times and location when you open it. Choose your Google account, calendar and notification settings there, then Save. UniMate does not read either calendar or update its plan from saved events.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
@@ -217,7 +217,7 @@ private struct CalendarEventEditor: UIViewControllerRepresentable {
     }
 }
 
-struct PipRemindersView: View {
+struct UniMateRemindersView: View {
     var plan: Plan? = nil
     @Environment(\.dismiss) private var dismiss
     @StateObject private var store = ReminderListStore()
@@ -285,8 +285,8 @@ struct PipRemindersView: View {
 }
 
 /// Keep a strong reference: UNUserNotificationCenter's delegate is weak.
-final class PipNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
-    static let shared = PipNotificationDelegate()
+final class UniMateNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = UniMateNotificationDelegate()
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {

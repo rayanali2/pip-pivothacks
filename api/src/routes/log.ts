@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import type { PipService } from '../service';
+import type { UniMateService } from '../service';
 import { demoResetSchema, pivotLogCreateSchema, studentQuerySchema } from './schemas';
 import { asyncRoute, parseInput } from './util';
 
 /** History, pivot log and demo reset. */
-export function logRouter(service: PipService): Router {
+export function logRouter(service: UniMateService): Router {
   const router = Router();
 
   router.get(

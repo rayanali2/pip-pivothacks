@@ -1,5 +1,5 @@
 -- =============================================================================
--- Pip / Snowflake layer  --  02_stage.sql
+-- UniMate / Snowflake layer  --  02_stage.sql
 -- Internal stage for voice captures (m4a) uploaded by the API.
 -- AI_TRANSCRIBE only reads files from stages with SERVER-SIDE encryption
 -- (SNOWFLAKE_SSE). The default client-side encryption does not work, and the

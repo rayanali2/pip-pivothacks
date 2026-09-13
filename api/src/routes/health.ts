@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import type { PipService } from '../service';
+import type { UniMateService } from '../service';
 import { asyncRoute, queryString } from './util';
 
-export function healthRouter(service: PipService): Router {
+export function healthRouter(service: UniMateService): Router {
   const router = Router();
   router.get(
     '/health',

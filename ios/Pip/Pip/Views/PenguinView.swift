@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Original vector mascot. Presentation state is derived from the existing voice state.
 struct PenguinView: View {
-    let state: PipState
+    let state: UniMateState
     var size: CGFloat = 180
     var ready = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -10,13 +10,13 @@ struct PenguinView: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(PipDesign.mist)
+                .fill(UniMateDesign.mist)
                 .frame(width: size * 1.18, height: size * 1.18)
             if state == .listening {
-                Circle().strokeBorder(PipDesign.accent.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [4, 6]))
+                Circle().strokeBorder(UniMateDesign.accent.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [4, 6]))
                     .frame(width: size * 1.32, height: size * 1.32)
             }
-            Ellipse().fill(PipDesign.ink.opacity(0.09))
+            Ellipse().fill(UniMateDesign.ink.opacity(0.09))
                 .frame(width: size * 0.7, height: size * 0.1).offset(y: size * 0.49)
             PenguinFigure(size: size, listening: state == .listening, ready: ready || state == .speaking)
                 .rotationEffect(.degrees(state == .listening ? -7 : state == .thinking ? 5 : 0))
@@ -25,18 +25,18 @@ struct PenguinView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "ellipsis").font(.headline.bold())
                 }
-                .foregroundStyle(PipDesign.accent).padding(10)
+                .foregroundStyle(UniMateDesign.accent).padding(10)
                 .background(.white, in: Capsule()).offset(x: size * 0.4, y: -size * 0.4)
             } else if ready && state != .listening {
                 Image(systemName: "checkmark")
                     .font(.system(size: size * 0.12, weight: .bold)).foregroundStyle(.white)
-                    .padding(size * 0.08).background(PipDesign.positive, in: Circle())
+                    .padding(size * 0.08).background(UniMateDesign.positive, in: Circle())
                     .offset(x: size * 0.46, y: -size * 0.34)
             }
         }
         .frame(width: size * 1.4, height: size * 1.4)
         .accessibilityElement()
-        .accessibilityLabel("Pip the penguin, \(ready && state == .idle ? "your next step is ready" : state.caption)")
+        .accessibilityLabel("UniMate the penguin, \(ready && state == .idle ? "your next step is ready" : state.caption)")
     }
 }
 
@@ -57,13 +57,13 @@ private struct PenguinFigure: View {
                 .offset(x: -size * 0.35, y: listening ? -size * 0.1 : size * 0.09)
             flipper.rotationEffect(.degrees(ready ? -65 : -24))
                 .offset(x: size * 0.35, y: ready ? -size * 0.1 : size * 0.09)
-            Ellipse().fill(PipDesign.ink)
+            Ellipse().fill(UniMateDesign.ink)
                 .frame(width: size * 0.78, height: size * 0.91)
                 .overlay { Ellipse().strokeBorder(.white, lineWidth: size * 0.025) }
             Ellipse().fill(Color(red: 0.99, green: 0.98, blue: 0.95))
                 .frame(width: size * 0.61, height: size * 0.72).offset(y: size * 0.06)
             // A little dark crown makes the white face read as a penguin, even at small sizes.
-            Ellipse().fill(PipDesign.ink)
+            Ellipse().fill(UniMateDesign.ink)
                 .frame(width: size * 0.13, height: size * 0.12).offset(y: -size * 0.30)
             HStack(spacing: size * 0.19) {
                 eye
@@ -76,9 +76,9 @@ private struct PenguinFigure: View {
             RoundedRectangle(cornerRadius: size * 0.025)
                 .fill(beak).frame(width: size * 0.12, height: size * 0.08)
                 .rotationEffect(.degrees(45)).offset(y: size * 0.015)
-            Capsule().fill(PipDesign.accent.opacity(0.75))
+            Capsule().fill(UniMateDesign.accent.opacity(0.75))
                 .frame(width: size * 0.38, height: size * 0.065).offset(y: size * 0.20)
-            RoundedRectangle(cornerRadius: 3).fill(PipDesign.accent)
+            RoundedRectangle(cornerRadius: 3).fill(UniMateDesign.accent)
                 .frame(width: size * 0.075, height: size * 0.16)
                 .rotationEffect(.degrees(-12)).offset(x: size * 0.12, y: size * 0.25)
         }
@@ -86,11 +86,11 @@ private struct PenguinFigure: View {
     }
 
     private var flipper: some View {
-        Ellipse().fill(PipDesign.ink).frame(width: size * 0.16, height: size * 0.4)
+        Ellipse().fill(UniMateDesign.ink).frame(width: size * 0.16, height: size * 0.4)
             .overlay { Ellipse().strokeBorder(.white, lineWidth: size * 0.018) }
     }
     private var eye: some View {
-        Capsule().fill(PipDesign.ink)
+        Capsule().fill(UniMateDesign.ink)
             .frame(width: size * 0.045, height: size * (ready ? 0.045 : 0.07))
     }
     private var blush: some View {

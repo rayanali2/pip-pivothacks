@@ -5,11 +5,11 @@ enum SampleData {
     static let demoSentence = "I have a 2 PM lab. I need to return headphones by 5 PM or lose the refund. My assignment is due tomorrow. I need groceries, and I have $35 until Friday. What should I do?"
 
     static let plan: Plan? = decode(Plan.self, from: planJSON)
-    static let tasks: [PipTask] = decode([PipTask].self, from: tasksJSON) ?? []
+    static let tasks: [UniMateTask] = decode([UniMateTask].self, from: tasksJSON) ?? []
     static let todayTimetable: TodayTimetableResponse? = decode(TodayTimetableResponse.self, from: todayJSON)
 
     static func decode<T: Decodable>(_ type: T.Type, from json: String) -> T? {
-        let decoder = PipCoding.makeDecoder()
+        let decoder = UniMateCoding.makeDecoder()
         return try? decoder.decode(type, from: Data(json.utf8))
     }
 

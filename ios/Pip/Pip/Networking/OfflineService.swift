@@ -4,15 +4,15 @@ import Foundation
 /// is unreachable. Keeps a little in-memory state so captures, reruns and "Start now"
 /// show up in History. Every response reports source "fallback".
 @MainActor
-final class OfflineService: PipService {
+final class OfflineService: UniMateService {
     let isOffline = true
 
-    private let decoder = PipCoding.makeDecoder()
+    private let decoder = UniMateCoding.makeDecoder()
     private var historyEntries: [HistoryEntry]?
     private var weekBlocks: [TimetableBlock]?
     private var storedProfile: Profile?
     private var knownPlans: [String: Plan] = [:]
-    private var knownTasks: [PipTask] = []
+    private var knownTasks: [UniMateTask] = []
 
     enum Fixture: String {
         case health
@@ -28,13 +28,13 @@ final class OfflineService: PipService {
 
     func load<T: Decodable>(_ fixture: Fixture, as type: T.Type) throws -> T {
         guard let url = Bundle.main.url(forResource: fixture.rawValue, withExtension: "json") else {
-            throw PipError.missingFixture(fixture.rawValue)
+            throw UniMateError.missingFixture(fixture.rawValue)
         }
         let data = try Data(contentsOf: url)
         return try decoder.decode(type, from: data)
     }
 
-    // MARK: PipService
+    // MARK: UniMateService
 
     func health() async throws -> HealthResponse {
         var response = try load(.health, as: HealthResponse.self)
@@ -44,11 +44,11 @@ final class OfflineService: PipService {
 
     // Context planning is computed by the API; nothing is bundled, so offline never shows a stored answer as new.
     func contextPlan(requestID: String, statedMinutes: Int?) async throws -> ContextPlanResponse {
-        throw PipError.server("Live context planning needs the Pip API.")
+        throw UniMateError.server("Live context planning needs the UniMate API.")
     }
 
     func contextAction(requestID: String, planRequestID: String) async throws -> ContextActionResponse {
-        throw PipError.server("Live context planning needs the Pip API.")
+        throw UniMateError.server("Live context planning needs the UniMate API.")
     }
 
     func contextHistory() async throws -> ContextHistoryResponse {
@@ -56,7 +56,7 @@ final class OfflineService: PipService {
     }
 
     func contextPreview(planRequestID: String, overrun: ContextOverrunInput) async throws -> ContextPreviewResponse {
-        throw PipError.server("Live context planning needs the Pip API.")
+        throw UniMateError.server("Live context planning needs the UniMate API.")
     }
 
     func captureVoice(fileURL: URL, followupPlanID: String?) async throws -> CaptureResponse {
@@ -165,7 +165,7 @@ final class OfflineService: PipService {
             historyEntries = entries
         }
 
-        var task: PipTask?
+        var task: UniMateTask?
         if let templateTask = template?.task, templateTask.taskId == taskID {
             task = templateTask
         } else if let taskID {

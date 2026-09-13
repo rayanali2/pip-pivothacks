@@ -158,7 +158,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('LiveBackend', () => {
-  it('(a) every Snowflake call throws -> PipService answers 200-shaped data with source fallback', async () => {
+  it('(a) every Snowflake call throws -> UniMateService answers 200-shaped data with source fallback', async () => {
     const executor = new FakeExecutor(() => {
       throw new Error('snowflake unreachable');
     });

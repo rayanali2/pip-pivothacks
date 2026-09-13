@@ -4,7 +4,7 @@ import Foundation
 // .convertToSnakeCase, so every property is the camelCase form of its JSON key.
 // Datetimes stay as String (IsoDateTime / IsoDate / "HH:MM"); see DateFormatting.
 
-enum PipCoding {
+enum UniMateCoding {
     static func makeDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -20,7 +20,7 @@ enum PipCoding {
 
 // MARK: - Rows
 
-struct PipTask: Codable, Hashable, Identifiable {
+struct UniMateTask: Codable, Hashable, Identifiable {
     let taskId: String
     let studentId: String
     let captureId: String?
@@ -287,7 +287,7 @@ struct CaptureResponse: Codable, Hashable {
     let capture: Capture
     let transcript: String
     let needsText: Bool
-    let tasks: [PipTask]
+    let tasks: [UniMateTask]
     let plan: Plan
     let diff: PlanDiff?
     let previousPlanId: String?
@@ -324,7 +324,7 @@ struct ProfileResponse: Codable, Hashable {
 struct ActionResponse: Codable, Hashable {
     var source: Source
     let action: Action
-    let task: PipTask?
+    let task: UniMateTask?
 }
 
 struct HistoryResponse: Codable, Hashable {

@@ -1,6 +1,6 @@
-# Pip
+# UniMate
 
-Pip is a voice-first iOS companion for first-time independent university students. It appears as a small penguin. The student holds a button and describes an overloaded day, for example: a lab at 2, a refund deadline, an assignment due tomorrow, groceries on $35 until Friday. Pip answers out loud with one practical next action ("do now") and a Today Plan built around their timetable, their money and basic needs such as food and sleep.
+UniMate is a voice-first iOS companion for first-time independent university students. It appears as a small penguin. The student holds a button and describes an overloaded day, for example: a lab at 2, a refund deadline, an assignment due tomorrow, groceries on $35 until Friday. UniMate answers out loud with one practical next action ("do now") and a Today Plan built around their timetable, their money and basic needs such as food and sleep.
 
 Snowflake Cortex is the brain. `AI_TRANSCRIBE` turns speech into text, and the stored procedures `EXTRACT_FROM_TRANSCRIPT` and `BUILD_PLAN` turn the transcript into tasks and a ranked plan. A deterministic ranker (in SQL inside Snowflake, and in TypeScript inside the API) keeps the demo working when Cortex or the network is unavailable.
 
@@ -9,12 +9,12 @@ Snowflake Cortex is the brain. `AI_TRANSCRIBE` turns speech into text, and the s
 ```mermaid
 flowchart LR
   subgraph IOS["ios/ (SwiftUI, iOS 17)"]
-    APP["Tabs: Pip, Today, Schedule, History"]
+    APP["Tabs: UniMate, Today, Schedule, History"]
     FIX["Bundled offline fixtures"]
   end
   subgraph API["api/ (Node + Express, port 3000)"]
     ROUTES["Routes + zod validation"]
-    SVC["PipService"]
+    SVC["UniMateService"]
     MEM["In-memory store + TS ranker<br/>source: fallback"]
   end
   subgraph SF["Snowflake PIP.APP"]
@@ -65,7 +65,8 @@ Run these steps in order on a fresh clone.
    - **Cortex access.** If your role lacks it, run this as ACCOUNTADMIN: `GRANT DATABASE ROLE SNOWFLAKE.CORTEX_USER TO ROLE <your_role>;`
    - **Claude in your region.** `claude-sonnet-4-5` is not hosted in every region. If the check in `03_functions.sql` picks `mistral-large2` or `llama3.1-8b` and you want Claude, run this as ACCOUNTADMIN, then re-run `03_functions.sql`: `ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';`
 4. **Seed the demo.** Run `npm run seed`. It re-anchors the six `demo-*` tasks to the scenario clock and stores the seeded Today Plan in Snowflake.
-5. **Start the API.** Run `npm run dev`. On boot it prints `Pip API <mode> on http://<LAN IP>:3000`.
+5. **Start the API.** Run `npm run dev`. On boot it prints `UniMate API <mode> on http://<LAN IP>:3000`.
+   - **ElevenLabs speech:** set `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` in ignored `api/.env`. The app requests `POST /speech` and plays the returned MP3. Credentials stay on the API; missing configuration or provider failure uses the existing device voice. Mute and recording cancel speech.
 6. **Run the iOS app.** Open `ios/Pip/Pip.xcodeproj` in Xcode 16 or later.
    - **Xcode 15:** it cannot read this project format. Run `brew install xcodegen && cd ios/Pip && xcodegen generate` and open the regenerated project.
    - **API address:** set `defaultAPIBaseURL` in `ios/Pip/Pip/Config.swift` to `http://<laptop LAN IP>:3000`, using the address the API printed. The default `http://localhost:3000` only works in the Simulator. You can also change the address in the app under **Schedule → Server**.
@@ -115,10 +116,10 @@ The sentence to say:
 
 > I have a 2 PM lab. I need to return headphones by 5 PM or lose the refund. My assignment is due tomorrow. I need groceries, and I have $35 until Friday. What should I do?
 
-1. **0:00. Open the app on the Pip tab.** Today's CHEM 110 Lab block (2:00–5:00 PM) and the free-window pill "47 min free until CHEM 110 Lab, 2:00 PM" are visible.
+1. **0:00. Open the app on the UniMate tab.** Today's CHEM 110 Lab block (2:00–5:00 PM) and the free-window pill "47 min free until CHEM 110 Lab, 2:00 PM" are visible.
 2. **0:05. Hold to talk and say the sentence.** Release when done.
 3. **0:15. The transcript card appears** with what Snowflake heard.
-4. **0:18. Pip speaks do now: return the headphones.** The $79 refund is gone for good at 5:00 PM, and you are in Lab from 2:00 to 5:00. The 35-minute return fits in the 47 free minutes before the 2 PM lab, with 12 minutes to spare.
+4. **0:18. UniMate speaks do now: return the headphones.** The $79 refund is gone for good at 5:00 PM, and you are in Lab from 2:00 to 5:00. The 35-minute return fits in the 47 free minutes before the 2 PM lab, with 12 minutes to spare.
 5. **0:25. Open the Today tab** and walk the plan:
    - return headphones (now)
    - CHEM 110 Lab, 2:00–5:00 PM
@@ -130,7 +131,7 @@ The sentence to say:
 6. **0:35. Tap the chip "I only have 25 minutes."**
    - The banner explains what changed: "Only 25 min: the 35-min headphones return won't fit before Lab ($79 at risk), so do now is the assignment outline."
    - The return moves into Today with an at-risk flag, and do now becomes a 20-minute assignment outline with 5 minutes to spare before Lab.
-   - Moved items animate, and Pip speaks the new do now.
+   - Moved items animate, and UniMate speaks the new do now.
 7. **0:48. Tap Start now.**
 8. **0:52. Open History → Decisions.** It shows the decision record: the capture plan, the 25-minute rerank plan with what changed, and the `start_now` action.
 9. **0:58 (optional). Open History → Pivot Log.**
@@ -140,7 +141,7 @@ Before you present:
 - ☐ `npm run dev` is running on the laptop, and the phone points at the printed LAN IP
 - ☐ `GET /health` shows the expected `mode` (`live` or `mock`) and a filled `cortex` block (`complete`, `complete_model`, `transcribe`)
 - ☐ Demo data is reset: `POST /demo/reset` for the in-memory store, or `npm run seed` (or re-run `05_seed.sql`) for Snowflake
-- ☐ Phone volume up, silent switch off, and Pip not muted in the app
+- ☐ Phone volume up, silent switch off, and UniMate not muted in the app
 - ☐ The backup screen recording of the full demo is ready to play
 
 ## What's mocked
@@ -277,8 +278,8 @@ Seeded by `snowflake/05_seed.sql` and by the mock store:
 
 | # | Revealed | Assumption changed | Response | Cut | Sentence |
 |---|---|---|---|---|---|
-| 1 | Problem 7 — Prioritization | Generic user | Voice-first ranker with decay curves, with Snowflake as the brain | None | Problem 7 is prioritization, so Pip turns a spoken, overloaded day into one ranked next action with Snowflake Cortex as the brain. |
-| 2 | User is a first-time independent university student | Generic urgency → practical cost of delay against classes, money, and basic needs | Timetable, budget window, free-window math, basic-needs guard; Today Plan replaces the score | Generic corpus comparison | We learned our user is a first-time independent student, so Pip now plans around classes, money, and practical life errands — not generic task urgency. |
+| 1 | Problem 7 — Prioritization | Generic user | Voice-first ranker with decay curves, with Snowflake as the brain | None | Problem 7 is prioritization, so UniMate turns a spoken, overloaded day into one ranked next action with Snowflake Cortex as the brain. |
+| 2 | User is a first-time independent university student | Generic urgency → practical cost of delay against classes, money, and basic needs | Timetable, budget window, free-window math, basic-needs guard; Today Plan replaces the score | Generic corpus comparison | We learned our user is a first-time independent student, so UniMate now plans around classes, money, and practical life errands — not generic task urgency. |
 
 Pivot 3:
 
@@ -288,7 +289,7 @@ Pivot 3:
 | assumption_changed | Free time was a ranking weight → free time before the next fixed class is a hard filter on do now |
 | response | `available_minutes = (next protected start − arrival buffer) − simulated now`, recomputed per request; full-path checks around protected commitments; cumulative spending in cents with a protected reserve; result state + provenance; `POST /context/plan`, `/context/preview`, `/context/actions`, `GET /context/history`; Today context strip with a Full / 48 / 25 min control |
 | cut | Prep-step durations the student didn't supply, success probabilities, scenario persistence |
-| sentence | We made available time before the next class a hard planning constraint, so Pip changes what it recommends instead of just showing the schedule. |
+| sentence | We made available time before the next class a hard planning constraint, so UniMate changes what it recommends instead of just showing the schedule. |
 
 Pivot 3 demo (fixture `api/src/demo/pivot3.ts`, simulated Monday 12:40 PM, America/Toronto): on Today, switch **Update context** from 48 min to 25 min. At 48 min the do now is the 40-minute return outing (back by 1:20 PM; after Lab it would finish at 5:15 PM, past the 5:00 PM cutoff). At 25 min the outing is rejected for that window and do now becomes the 20-minute assignment start. These plans are computed by the API's TypeScript planner and labelled `local_fallback`, including in live mode. The context planner does not run in Snowflake yet.
 
@@ -359,7 +360,7 @@ curl -X POST http://localhost:3000/plans/rerank \
   - Use the LAN IP the API printed on boot, not `localhost`.
   - Put the phone and laptop on the same Wi-Fi. Guest networks often block device-to-device traffic, so use a phone hotspot if needed.
   - Allow Node through the laptop firewall on port 3000 (Windows: private network; macOS: Firewall options).
-  - Allow Pip under iOS Settings → Privacy & Security → Local Network.
+  - Allow UniMate under iOS Settings → Privacy & Security → Local Network.
   - To test, open `http://<IP>:3000/health` in the phone's Safari.
   - Change the address in the app under **Schedule → Server**.
 - **`AI_TRANSCRIBE` rejects the m4a.**

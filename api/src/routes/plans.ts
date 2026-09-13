@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import type { PipService } from '../service';
+import type { UniMateService } from '../service';
 import { actionSchema, rerankSchema } from './schemas';
 import { asyncRoute, parseInput } from './util';
 
-export function plansRouter(service: PipService): Router {
+export function plansRouter(service: UniMateService): Router {
   const router = Router();
 
   router.post(
