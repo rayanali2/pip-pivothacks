@@ -7,32 +7,38 @@ struct ContextSection: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             if model.isOffline {
-                PipStatusView(symbol: "wifi.slash", title: "Live context is offline", detail: "Your voice and text plan still works. Connect under Schedule → Server to check time before class.")
+                PipStatusView(symbol: "wifi.slash", title: "Live context is offline", detail: "Voice and text plans still work. Connect in Schedule → Server.")
             } else {
                 if let plan = model.contextPlan {
                     ContextStrip(plan: plan)
                     ContextPresetPicker()
                     if let changeMessage { WhatChangedBanner(headline: changeMessage) }
                     if model.isContextLoading {
-                        PipStatusView(symbol: "", title: "Checking your new window", detail: "The recommendation below is from your previous check.", loading: true)
+                        PipStatusView(symbol: "", title: "Checking your new window", detail: "Showing your last pick until it’s ready", loading: true)
                     }
+                    // Stays fully readable while re-checking; the disabled button and status row signal the refresh.
                     ContextDoNowCard(plan: plan)
                         .disabled(model.isContextLoading)
-                        .opacity(model.isContextLoading ? 0.55 : 1)
                         .id(plan.snapshot.requestId)
                         .transition(.opacity)
                 } else if model.isContextLoading {
-                    PipStatusView(symbol: "", title: "Checking your context", detail: "Finding what fits before class…", loading: true)
+                    PipStatusView(symbol: "", title: "Checking your context", detail: "Finding what fits before class", loading: true)
                 } else {
                     HStack {
-                        Text("Context plan unavailable.")
+                        Label("Context plan unavailable", systemImage: "exclamationmark.circle")
                             .font(.subheadline)
                             .foregroundStyle(PipDesign.secondary)
-                        Button("Retry") {
+                        Spacer(minLength: 8)
+                        Button {
                             model.updateContext(model.contextPreset)
+                        } label: {
+                            Text("Retry")
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
                         }
+                        .font(.subheadline.weight(.semibold))
                     }
                 }
                 if model.contextPlan == nil { ContextPresetPicker() }
@@ -44,8 +50,8 @@ struct ContextSection: View {
             let previous = old.doNow?.label ?? "Nothing fits"
             let current = new.doNow?.label ?? "Nothing fits"
             changeMessage = previous == current
-                ? "Checked again with \(new.snapshot.availableMinutes) minutes. \(current) still comes first."
-                : "With \(new.snapshot.availableMinutes) minutes, \(current) replaces \(previous)."
+                ? "With \(new.snapshot.availableMinutes) min, \(current) still comes first."
+                : "With \(new.snapshot.availableMinutes) min, \(current) replaces \(previous)."
         }
     }
 }
@@ -55,10 +61,18 @@ struct ContextPresetPicker: View {
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Update context · free time before class")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(PipDesign.secondary)
+        VStack(alignment: .leading, spacing: 8) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    title
+                    Spacer(minLength: 8)
+                    hint
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    title
+                    hint
+                }
+            }
             if typeSize.isAccessibilitySize {
                 presetPicker.pickerStyle(.menu)
             } else {
@@ -66,6 +80,21 @@ struct ContextPresetPicker: View {
             }
         }
     }
+
+    private var title: some View {
+        Label("Free time before class", systemImage: "hourglass")
+            .labelStyle(PipCompactLabelStyle())
+            .pipEyebrow()
+    }
+
+    private var hint: some View {
+        Label("Updates your pick", systemImage: "arrow.down")
+            .labelStyle(PipCompactLabelStyle())
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(PipDesign.accent)
+            .accessibilityHidden(true)
+    }
+
     private var presetPicker: some View {
         Picker(
                 "Free time",
@@ -101,17 +130,18 @@ struct ContextStrip: View {
     private var snapshot: ContextSnapshot { plan.snapshot }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             ContextFacts(
                 now: ContextTimeFormatting.wallTime(snapshot.now),
                 next: snapshot.nextCommitment?.title ?? "No upcoming class",
                 time: snapshot.nextCommitment.map { ContextTimeFormatting.wallTime($0.startsAt) },
                 minutes: snapshot.availableMinutes
             )
-            Text("Demo clock · \(plan.provenance.label)")
-                .font(.caption).foregroundStyle(PipDesign.secondary)
+            Label("Demo clock · \(plan.provenance.label)", systemImage: "info.circle")
+                .labelStyle(PipCompactLabelStyle())
+                .font(.caption2).foregroundStyle(PipDesign.secondary)
             ForEach(Array(plan.warnings.enumerated()), id: \.offset) { pair in
-                Label(pair.element, systemImage: "exclamationmark.triangle")
+                Label(pair.element, systemImage: "exclamationmark.triangle.fill")
                     .font(.footnote).foregroundStyle(PipDesign.warning)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -130,18 +160,28 @@ struct ContextDoNowCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Do this now", systemImage: "sparkle")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.accentColor)
+                .labelStyle(PipCompactLabelStyle())
+                .pipEyebrow(PipDesign.accent)
 
             if let doNow = plan.doNow {
                 Text(doNow.label)
-                    .font(.system(.title, design: .rounded, weight: .bold))
+                    .font(PipDesign.title)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityLabel("Recommendation: \(doNow.label)")
 
-                Text(Self.scopeText(doNow))
-                    .font(.footnote.monospacedDigit())
-                    .foregroundStyle(PipDesign.secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    PipFlowLayout {
+                        PipPill(text: "\(doNow.minutes) min", systemImage: "timer")
+                        PipPill(text: Self.scopeLabel(doNow), systemImage: Self.scopeSymbol(doNow), tint: PipDesign.secondary)
+                    }
+                    if let detail = Self.scopeDetail(doNow) {
+                        Text(detail)
+                            .font(.footnote)
+                            .foregroundStyle(PipDesign.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .accessibilityElement(children: .combine)
 
                 Text(plan.reason)
                     .font(.subheadline).foregroundStyle(PipDesign.secondary)
@@ -157,15 +197,19 @@ struct ContextDoNowCard: View {
                 .accessibilityLabel(isStarted ? "Started \(doNow.label)" : "Start now: \(doNow.label)")
 
                 if let target = plan.overrunTarget {
-                    Button("What if this takes 10 minutes longer?") {
+                    Button {
                         model.previewOverrun()
+                    } label: {
+                        Label("What if it runs 10 min over?", systemImage: "plus.circle")
+                            .labelStyle(PipCompactLabelStyle())
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                     }
-                    .font(.footnote.weight(.medium))
-                    .frame(minHeight: 44)
+                    .font(.footnote.weight(.semibold))
                     .accessibilityHint("Checks \(target.label) with 10 extra minutes without changing your plan")
 
                     if let scenario = model.contextScenario, model.contextScenarioRequestID == plan.snapshot.requestId {
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 6) {
                             Label("10 minutes longer", systemImage: "clock.badge.exclamationmark")
                                 .font(.subheadline.weight(.semibold))
                             Text(scenario.summary)
@@ -176,24 +220,43 @@ struct ContextDoNowCard: View {
                                 .foregroundStyle(PipDesign.secondary)
                         }
                         .padding(14)
-                        .background(Color.white, in: RoundedRectangle(cornerRadius: 14))
-                        .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(PipDesign.accent.opacity(0.3)) }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(PipDesign.mist, in: RoundedRectangle(cornerRadius: PipDesign.radiusSmall, style: .continuous))
                     }
                 }
             } else {
-                Text("Nothing fits right now").font(PipDesign.heading)
+                Label("Nothing fits right now", systemImage: "moon.zzz")
+                    .font(PipDesign.heading)
                 Text(plan.reason).font(.subheadline).foregroundStyle(PipDesign.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
         }
         .pipCard(emphasized: true)
     }
 
-    private static func scopeText(_ doNow: ContextCandidate) -> String {
+    private static func scopeLabel(_ doNow: ContextCandidate) -> String {
         switch doNow.kind {
-        case "prep": return "\(doNow.minutes) min · prepares \(doNow.title); does not complete it"
-        case "first_step": return doNow.completesTask ? "\(doNow.minutes) min · finishes \(doNow.title)" : "\(doNow.minutes) min · first step of \(doNow.title), not the whole task"
-        default: return "\(doNow.minutes) min · completes \(doNow.title)"
+        case "prep": return "Prep only"
+        case "first_step": return doNow.completesTask ? "Finishes task" : "First step"
+        default: return "Finishes task"
+        }
+    }
+
+    private static func scopeSymbol(_ doNow: ContextCandidate) -> String {
+        switch doNow.kind {
+        case "prep": return "square.and.pencil"
+        case "first_step": return doNow.completesTask ? "checkmark.circle" : "flag"
+        default: return "checkmark.circle"
+        }
+    }
+
+    /// Keeps the honest scope: what the step does for the whole task.
+    private static func scopeDetail(_ doNow: ContextCandidate) -> String? {
+        switch doNow.kind {
+        case "prep": return "Prepares \(doNow.title); does not complete it"
+        case "first_step": return doNow.completesTask ? "Finishes \(doNow.title)" : "Part of \(doNow.title), not the whole task"
+        default: return doNow.label == doNow.title ? nil : "Completes \(doNow.title)"
         }
     }
 }

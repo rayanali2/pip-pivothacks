@@ -13,6 +13,7 @@ import type {
   HistoryAction,
   HistoryEntry,
   HistoryResponse,
+  PipelineStage,
   PivotLogCreateRequest,
   PivotLogCreateResponse,
   PivotLogEntry,
@@ -35,13 +36,25 @@ import type {
 import { isoDow, toIsoLocal, type Clock } from '../clock';
 import { buildPlan, expiredTaskIds } from '../ranker/plan';
 import { DEFAULT_DECAY_CONFIG } from '../ranker/decay';
-import { heuristicExtract } from '../ranker/extract';
 import { diffPlans } from '../ranker/diff';
-import { parseContextFromQuestion } from '../ranker/questions';
+import { mergeRerankContext } from '../ranker/questions';
 import { isExpired, isOpenStatus } from '../ranker/rules';
 import { computeFreeWindows } from '../ranker/windows';
 import { demoBaseline, DEMO_FOLLOWUP_TRANSCRIPT, DEMO_SEED_CAPTURE_ID, DEMO_STUDENT_ID, DEMO_TRANSCRIPT } from '../demo/scenario';
 import { applyDemoCopy, applyDemoDiffCopy } from '../demo/fixtures';
+import { createTranscriptExtractor, type ClaudeStatus, type TranscriptExtractor } from '../llm/extractor';
+import {
+  elapsed,
+  ENGINE,
+  extractStage,
+  now as perfNow,
+  rankStage,
+  rerankExtractStage,
+  skippedStage,
+  transcribeStage,
+  wordingStage,
+  type ChipTask,
+} from '../pipeline';
 import type { Backend, CaptureTextInput, CaptureVoiceInput, WarmPingResponse } from './backend';
 
 const SOURCE = 'fallback' as const;
@@ -63,6 +76,8 @@ export interface MemoryBackendOptions {
   /** reported by health() */
   snowflakeConfigured?: boolean;
   decay?: readonly DecayConfig[];
+  /** transcript extraction (Claude first when configured, then the heuristic parser); default: heuristic parser only */
+  extractor?: TranscriptExtractor;
 }
 
 interface StudentState {
@@ -79,6 +94,22 @@ interface StudentState {
   actions: Action[];
 }
 
+interface PlanArgs {
+  capture_id: string | null;
+  context: PlanContext;
+  constraints: Constraint[];
+  trigger: PlanTrigger;
+  previous: Plan | null;
+}
+
+interface ComputedPlan {
+  plan: Plan;
+  /** buildPlan */
+  rankMs: number;
+  /** applyDemoCopy */
+  wordingMs: number;
+}
+
 const clone = <T>(value: T): T => structuredClone(value);
 
 /** In-memory store + TypeScript ranker. Serves MOCK_MODE and the live-mode fallback. Source is always 'fallback'. */
@@ -86,6 +117,7 @@ export class MemoryBackend implements Backend {
   readonly clock: Clock;
   private readonly snowflakeConfigured: boolean;
   private readonly decay: readonly DecayConfig[];
+  private readonly extractor: TranscriptExtractor;
   private readonly students = new Map<string, StudentState>();
   private pivot: PivotLogEntry[];
 
@@ -93,8 +125,14 @@ export class MemoryBackend implements Backend {
     this.clock = opts.clock;
     this.snowflakeConfigured = opts.snowflakeConfigured ?? false;
     this.decay = opts.decay ?? DEFAULT_DECAY_CONFIG;
+    this.extractor = opts.extractor ?? createTranscriptExtractor(null);
     this.pivot = demoBaseline(this.clock.now()).pivot_log;
     this.state(DEMO_STUDENT_ID);
+  }
+
+  /** Claude extraction status for /health. */
+  get claudeStatus(): ClaudeStatus {
+    return this.extractor.claude;
   }
 
   // -------------------------------------------------------------------------
@@ -146,14 +184,13 @@ export class MemoryBackend implements Backend {
     return st.plans[st.plans.length - 1] ?? null;
   }
 
-  private storePlan(
-    st: StudentState,
-    args: { capture_id: string | null; context: PlanContext; constraints: Constraint[]; trigger: PlanTrigger; previous: Plan | null },
-  ): Plan {
+  /** Pure with respect to the store: ranks and words a plan without saving it or expiring tasks. */
+  private computePlan(st: StudentState, args: PlanArgs, planId: string): ComputedPlan {
     const now = this.clock.now();
     const tasks = [...st.tasks.values()];
+    const rankStarted = perfNow();
     const raw = buildPlan({
-      plan_id: this.id('plan'),
+      plan_id: planId,
       student_id: st.student.student_id,
       capture_id: args.capture_id,
       created_at: this.realIso(),
@@ -167,14 +204,29 @@ export class MemoryBackend implements Backend {
       previous_plan: args.previous,
       decay: this.decay,
     });
+    const rankMs = elapsed(rankStarted);
+    const wordingStarted = perfNow();
     const plan = applyDemoCopy(raw, tasks, { pinned: this.clock.pinned, now });
-    for (const id of expiredTaskIds(tasks, now)) {
+    return { plan, rankMs, wordingMs: elapsed(wordingStarted) };
+  }
+
+  private storePlan(st: StudentState, args: PlanArgs): ComputedPlan {
+    const computed = this.computePlan(st, args, this.id('plan'));
+    const now = this.clock.now();
+    for (const id of expiredTaskIds([...st.tasks.values()], now)) {
       const t = st.tasks.get(id);
       if (t) st.tasks.set(id, { ...t, status: 'expired' });
     }
-    st.plans.push(plan);
-    st.planConstraints.set(plan.plan_id, [...args.constraints]);
-    return plan;
+    st.plans.push(computed.plan);
+    st.planConstraints.set(computed.plan.plan_id, [...args.constraints]);
+    return computed;
+  }
+
+  private planStages(computed: ComputedPlan, note: string | null = null): PipelineStage[] {
+    return [
+      rankStage(ENGINE.tsRanker, 'ok', computed.rankMs, computed.plan, note),
+      wordingStage(ENGINE.templates, 'ok', computed.wordingMs, computed.plan),
+    ];
   }
 
   private newCapture(st: StudentState, transcript: string, source: CaptureSource): Capture {
@@ -190,18 +242,22 @@ export class MemoryBackend implements Backend {
     return capture;
   }
 
-  private captureFlow(st: StudentState, capture: Capture): CaptureResponse {
+  private async captureFlow(st: StudentState, capture: Capture, transcribe: PipelineStage): Promise<CaptureResponse> {
     const now = this.clock.now();
-    const extracted = heuristicExtract(capture.transcript, now, this.openTasks(st, now));
+    const outcome = await this.extractor.extract(capture.transcript, now, this.openTasks(st, now));
+    const extracted = outcome.result;
+    const touched: ChipTask[] = [];
     for (const draft of extracted.tasks) {
       const target = draft.merge_into ? st.tasks.get(draft.merge_into) : undefined;
       if (target) {
-        st.tasks.set(target.task_id, {
+        const merged: Task = {
           ...target,
           due_at: draft.due_at ?? target.due_at,
           money_at_risk: draft.money_at_risk ?? target.money_at_risk,
           est_minutes: draft.est_minutes ?? target.est_minutes,
-        });
+        };
+        st.tasks.set(target.task_id, merged);
+        touched.push(merged);
       } else {
         const task: Task = {
           task_id: this.id('task'),
@@ -218,6 +274,7 @@ export class MemoryBackend implements Backend {
           created_at: toIsoLocal(now),
         };
         st.tasks.set(task.task_id, task);
+        touched.push(task);
       }
     }
     const constraints: Constraint[] = extracted.constraints.map((c) => ({
@@ -229,12 +286,22 @@ export class MemoryBackend implements Backend {
     }));
     st.constraints.push(...constraints);
 
-    const plan = this.storePlan(st, {
+    const computed = this.storePlan(st, {
       capture_id: capture.capture_id,
       context: { available_minutes: null, cash_available: null, question: extracted.question },
       constraints,
       trigger: 'capture',
       previous: null,
+    });
+    const extract = extractStage({
+      engine: outcome.engine,
+      status: outcome.status,
+      ms: outcome.ms,
+      tasks: touched,
+      constraints: extracted.constraints,
+      question: extracted.question,
+      at: now,
+      note: outcome.note,
     });
     return {
       source: SOURCE,
@@ -242,36 +309,45 @@ export class MemoryBackend implements Backend {
       transcript: capture.transcript,
       needs_text: false,
       tasks: clone(this.openTasks(st, this.clock.now())),
-      plan: clone(plan),
+      plan: clone(computed.plan),
       diff: null,
       previous_plan_id: null,
+      pipeline: [transcribe, extract, ...this.planStages(computed)],
     };
   }
 
-  private rerankInternal(st: StudentState, req: RerankRequest, captureId: string | null): RerankResponse {
+  /** `transcribe` is the follow-up capture's stage (null for POST /plans/rerank). A preview persists nothing. */
+  private rerankInternal(st: StudentState, req: RerankRequest, captureId: string | null, transcribe: PipelineStage | null): RerankResponse {
     const previous =
       st.plans.find((p) => p.plan_id === req.plan_id) ??
       this.latestPlan(st) ??
-      this.storePlan(st, { capture_id: null, context: emptyContext(), constraints: [], trigger: 'seed', previous: null });
-    const prevCtx = previous.reasoning.context;
-    const parsed = parseContextFromQuestion(req.context.question);
-    const context: PlanContext = {
-      available_minutes: req.context.available_minutes ?? parsed.available_minutes ?? prevCtx.available_minutes,
-      cash_available: req.context.cash_available ?? parsed.cash_available ?? prevCtx.cash_available,
-      question: req.context.question ?? prevCtx.question,
-    };
-    const constraints = st.planConstraints.get(previous.plan_id) ?? [];
-    const plan = this.storePlan(st, {
+      this.storePlan(st, { capture_id: null, context: emptyContext(), constraints: [], trigger: 'seed', previous: null }).plan;
+    const extractStarted = perfNow();
+    const { context, parsed } = mergeRerankContext(previous.reasoning.context, req.context);
+    const extractMs = elapsed(extractStarted);
+    const args: PlanArgs = {
       capture_id: captureId ?? previous.capture_id,
       context,
-      constraints,
+      constraints: st.planConstraints.get(previous.plan_id) ?? [],
       trigger: 'rerank',
       previous,
-    });
+    };
+    const computed = req.preview ? this.computePlan(st, args, `preview-${randomUUID()}`) : this.storePlan(st, args);
+    const plan = computed.plan;
     const now = this.clock.now();
     const tasks = [...st.tasks.values()];
     const diff = applyDemoDiffCopy(diffPlans(previous, plan), previous, plan, tasks, { pinned: this.clock.pinned, now });
-    return { source: SOURCE, plan: clone(plan), previous_plan_id: previous.plan_id, diff };
+    return {
+      source: SOURCE,
+      plan: clone(plan),
+      previous_plan_id: previous.plan_id,
+      diff,
+      pipeline: [
+        transcribe ?? skippedStage('transcribe', 'Nothing new to transcribe'),
+        rerankExtractStage(req.context.question, parsed, req.context, extractMs),
+        ...this.planStages(computed, req.preview ? 'Preview, not saved' : null),
+      ],
+    };
   }
 
   // -------------------------------------------------------------------------
@@ -286,27 +362,44 @@ export class MemoryBackend implements Backend {
       now: toIsoLocal(this.clock.now()),
       snowflake: { configured: this.snowflakeConfigured, connected: false, error: null, last_warm_ping_at: null },
       cortex: { transcribe: null, complete: null, complete_model: null, embed: null, verified_at: null, errors: ['MOCK_MODE'] },
+      claude: { ...this.extractor.claude },
     };
   }
 
   async captureText(input: CaptureTextInput): Promise<CaptureResponse> {
     const st = this.state(input.student_id);
     const capture = this.newCapture(st, input.text.trim(), 'text');
-    if (input.followup_plan_id) return this.followup(st, capture, input.followup_plan_id);
-    return this.captureFlow(st, capture);
+    const transcribe = transcribeStage(ENGINE.typed, 'ok', capture.transcript, null);
+    if (input.followup_plan_id) return this.followup(st, capture, input.followup_plan_id, transcribe);
+    return this.captureFlow(st, capture, transcribe);
   }
 
   async captureVoice(input: CaptureVoiceInput): Promise<CaptureResponse> {
     const st = this.state(input.student_id);
-    // Mock transcription: the audio is ignored.
-    const transcript = input.followup_plan_id ? DEMO_FOLLOWUP_TRANSCRIPT : DEMO_TRANSCRIPT;
+    const started = perfNow();
+    // Mock transcription ignores the audio: the app's on-device transcript when it sent one, else the canned demo transcript.
+    const onDevice = input.client_transcript?.trim() ?? '';
+    let transcribe: PipelineStage;
+    let transcript: string;
+    if (onDevice !== '') {
+      transcript = onDevice;
+      transcribe = transcribeStage(ENGINE.onDevice, 'ok', transcript, null);
+    } else {
+      transcript = input.followup_plan_id ? DEMO_FOLLOWUP_TRANSCRIPT : DEMO_TRANSCRIPT;
+      transcribe = transcribeStage(ENGINE.demoTranscript, 'ok', transcript, elapsed(started));
+    }
     const capture = this.newCapture(st, transcript, 'voice');
-    if (input.followup_plan_id) return this.followup(st, capture, input.followup_plan_id);
-    return this.captureFlow(st, capture);
+    if (input.followup_plan_id) return this.followup(st, capture, input.followup_plan_id, transcribe);
+    return this.captureFlow(st, capture, transcribe);
   }
 
-  private followup(st: StudentState, capture: Capture, planId: string): CaptureResponse {
-    const r = this.rerankInternal(st, { student_id: st.student.student_id, plan_id: planId, context: { question: capture.transcript } }, capture.capture_id);
+  private followup(st: StudentState, capture: Capture, planId: string, transcribe: PipelineStage): CaptureResponse {
+    const r = this.rerankInternal(
+      st,
+      { student_id: st.student.student_id, plan_id: planId, context: { question: capture.transcript } },
+      capture.capture_id,
+      transcribe,
+    );
     return {
       source: SOURCE,
       capture: clone(capture),
@@ -316,11 +409,12 @@ export class MemoryBackend implements Backend {
       plan: r.plan,
       diff: r.diff,
       previous_plan_id: r.previous_plan_id,
+      pipeline: r.pipeline,
     };
   }
 
   async rerank(req: RerankRequest): Promise<RerankResponse> {
-    return this.rerankInternal(this.state(req.student_id), req, null);
+    return this.rerankInternal(this.state(req.student_id), req, null, null);
   }
 
   async timetableToday(studentId: string): Promise<TodayTimetableResponse> {

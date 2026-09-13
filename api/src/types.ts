@@ -302,6 +302,39 @@ export interface CortexStatus {
 }
 
 // ---------------------------------------------------------------------------
+// Pipeline trace (what ran for one capture or rerank, with truthful engine names)
+// ---------------------------------------------------------------------------
+
+export const PIPELINE_STAGE_IDS = ['transcribe', 'extract', 'rank', 'wording'] as const;
+export type PipelineStageId = (typeof PIPELINE_STAGE_IDS)[number];
+
+export type PipelineChipKind = 'task' | 'fixed_block' | 'cash' | 'time_window' | 'travel' | 'question';
+
+export interface PipelineChip {
+  kind: PipelineChipKind;
+  /** "Return headphones for refund · $79 · 5:00 PM", "Lab 2:00 PM", "$35 until Fri", "25 min free" */
+  label: string;
+}
+
+/** 'ok' = the engine ran as intended; 'fallback' = a step down in the fallback chain served it; 'skipped' = nothing to do */
+export type PipelineStageStatus = 'ok' | 'fallback' | 'skipped';
+
+export interface PipelineStage {
+  id: PipelineStageId;
+  /** short past tense: 'Heard you' | 'Pulled out tasks' | 'Ranked against 5 rules' | 'Wrote your plan' */
+  label: string;
+  /** the engine that actually did the work, e.g. 'Snowflake AI_TRANSCRIBE', 'Claude · claude-haiku-4-5', 'Templates' */
+  engine: string;
+  /** one short line with numbers, e.g. '3 tasks · 2 constraints' */
+  detail: string;
+  status: PipelineStageStatus;
+  /** measured server-side milliseconds, or null when nothing ran on the server (typed, on-device, skipped) */
+  ms: number | null;
+  /** empty except on the extract stage */
+  chips: PipelineChip[];
+}
+
+// ---------------------------------------------------------------------------
 // HTTP
 // ---------------------------------------------------------------------------
 
@@ -324,6 +357,11 @@ export interface HealthResponse extends Sourced {
     last_warm_ping_at: IsoDateTime | null;
   };
   cortex: CortexStatus;
+  /** Claude extraction fallback (ANTHROPIC_API_KEY); model is null when not configured */
+  claude?: {
+    configured: boolean;
+    model: string | null;
+  };
 }
 
 export interface CaptureTextRequest {
@@ -331,7 +369,10 @@ export interface CaptureTextRequest {
   text: string;
 }
 
-/** POST /captures/voice is multipart: fields student_id, optional followup_plan_id; file field "audio" (m4a). */
+/**
+ * POST /captures/voice is multipart: fields student_id, optional followup_plan_id, optional client_transcript
+ * (the iOS on-device speech result); file field "audio" (m4a).
+ */
 export interface CaptureResponse extends Sourced {
   capture: Capture;
   transcript: string;
@@ -343,6 +384,8 @@ export interface CaptureResponse extends Sourced {
   /** set when this capture was a follow-up (followup_plan_id) */
   diff: PlanDiff | null;
   previous_plan_id: string | null;
+  /** transcribe, extract, rank, wording: what ran for this capture */
+  pipeline: PipelineStage[];
 }
 
 export interface RerankRequest {
@@ -353,12 +396,16 @@ export interface RerankRequest {
     cash_available?: number;
     question?: string;
   };
+  /** true: identical plan + diff computation, nothing persisted, plan_id 'preview-<uuid>' */
+  preview?: boolean;
 }
 
 export interface RerankResponse extends Sourced {
   plan: Plan;
   previous_plan_id: string;
   diff: PlanDiff;
+  /** transcribe, extract, rank, wording: what ran for this rerank */
+  pipeline: PipelineStage[];
 }
 
 export interface TodayTimetableResponse extends Sourced {
