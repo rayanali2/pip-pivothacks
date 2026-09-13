@@ -1,0 +1,26 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# node
+node_modules/
+dist/
+coverage/
+*.log
+
+# xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# os
+.DS_Store
+Thumbs.db
+
+# local uploads
+api/tmp/

@@ -1,0 +1,36 @@
+{
+  "name": "pip-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pip API: voice-first day planner for first-time independent university students (Snowflake + deterministic fallback)",
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "seed": "tsx ../scripts/seed.ts",
+    "fixtures": "tsx tools/fixtures.ts"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^4.22.2",
+    "multer": "^2.3.0",
+    "snowflake-sdk": "^3.3.0",
+    "zod": "^4.6.4"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.25",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^24.13.4",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.2.2",
+    "tsx": "^4.23.13",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.7"
+  }
+}
