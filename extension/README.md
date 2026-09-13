@@ -1,36 +1,70 @@
 # Pip for Chrome
 
-Load this directory directly as an unpacked Manifest V3 extension; no frontend build or dependencies are required. Chrome 116+ is required for the side panel. Voice uses WebM/Opus where Chrome supports it, with MP4/AAC as a fallback. Typed input is always available.
+Pip in Chrome's side panel, matching the iPhone app's design and features. It is plain HTML, CSS and ES modules, so there is no build step. It needs Chrome 116 or newer.
 
-1. From the repository's `api` folder, run `npm run dev`. Keep this running.
-2. In Chrome open `chrome://extensions` and enable Developer mode.
-3. Click **Load unpacked** and select this repository's `extension` directory.
-4. Pin Pip from Chrome's extensions menu, then click Pip to open the side panel.
-5. Confirm “Snowflake connected” or “Local fallback”, type a day, and click **Find my next step**.
+## Run it
 
-The API defaults to http://localhost:3000. Change its local port under History → Connection settings. The existing `demo` student is used. Mock mode is provided by the API (`MOCK_MODE=true`); an unreachable server is reported as offline, not silently replaced with fabricated plans.
+1. From the repository's `api` folder, run `npm run dev` and leave it running.
+2. In Chrome, open `chrome://extensions` and turn on **Developer mode**.
+3. Click **Load unpacked** and select this `extension` folder (not the repository root).
+4. Pin Pip from Chrome's extensions menu, then click it to open the side panel.
 
-## Included
+After changing files, click the reload icon on Pip's card in `chrome://extensions` and reopen the panel.
 
-Text-to-plan, optional recording with audio preview and explicit upload, current-tab course-page scan, spoken recommendations with mute, Today/Next/Can wait sections, evidence details, 25-minute and minus-10-minute reranks, free-text follow-ups, Start/Done/Later actions, complete prompt/response history, weekly schedule display and class addition, budget editing, and connection diagnostics.
+The API address defaults to `http://localhost:3000`. You can change the port under **Schedule → Server**.
 
-Voice recording requires microphone approval. No audio is sent until **Send recording to Pip**. If Chrome or Snowflake cannot process audio, use typed input. The “10 minutes less time” control reduces total available time; it does not implement the separate named-travel-segment Pivot 03 simulation.
+## What matches the app
+
+| iPhone app | Chrome extension |
+|---|---|
+| **Pip tab:** Now / Next class / Free strip, the animated penguin, hold-to-talk mic, typed input, pipeline reveal, do-now card, Up next, editable "Your words" | Same. You can hold the mic to talk, or tap once to start and tap again to send. |
+| **Do-now stakes:** live countdown, cost-of-waiting sparkline, the 5 rule chips, "What if this takes 10 min longer?" preview | Same |
+| **Today tab:** free-window header, What changed, focus card with window fit, risk alerts, plan notes, the day timeline (Now line, "Doesn't fit" tray, Full window / 48 min / 25 min), Can wait, follow-up bar with chips and voice | Same. Timeline cards glide to their new places after a rerank. |
+| **Task detail:** facts, ranking evidence, cost curve, Done / Defer / Drop, original capture | Same |
+| **Focus timer:** ring, +10 min, Done early, Time is up, I'm stuck | Same. The Live Activity becomes a minutes-left badge on the toolbar icon plus a Chrome notification when time is up. |
+| **Save & reminders:** Apple Calendar, Google Calendar, local reminders | Google Calendar opens in a tab. Apple and Outlook get a `.ics` download. Reminders fire as Chrome notifications. |
+| **Schedule tab:** today's timeline with filters, No time yet, the week (add and delete blocks), Money & routine, Server health | Same |
+| **History tab:** decisions with an actions filter; Pivot Log in demo mode | Same |
+| Speech with the beak moving on each word, mute | Same, using Chrome's built-in voices |
+| Per-install student ID; the shared `demo` student only with `--pip-demo` | Per-install student ID. The `demo` student only when **Schedule → Server → Developer demo** is on. |
+
+Only in Chrome: **Scan this tab** reads the course page you have open, but only when you click it. It sends the lines with dates and deadlines to Pip as a capture.
+
+Not ported: the Pivot 3 "context check" demo screens, which only exist in the app's developer demo mode.
+
+## Voice
+
+The first time you hold the mic, Chrome opens a small tab asking for microphone access. The side panel can't show that prompt itself. Allow it, then hold the mic again.
+
+Pip sends two things with each recording:
+- the audio file (WebM)
+- the words Chrome recognised, as `client_transcript`
+
+The `client_transcript` works like the iPhone's on-device transcript. If Snowflake can't transcribe the audio, the API uses those words instead, so voice works in both mock and live mode.
 
 ## Data and permissions
 
-The extension uses `sidePanel`, `storage`, `activeTab`, and `scripting`, plus HTTP host access limited to localhost and 127.0.0.1. It can read the current page only after **Scan this tab** is clicked. It does not read browsing history or scan tabs in the background. Plan state is held in session storage; a 50-entry conversation journal, the local API address, and mute preference persist locally. Snowflake secrets remain exclusively in `api/.env`. Do not copy the `.env` into this directory.
+- **`sidePanel`, `storage`:** run the panel and save its settings.
+- **`activeTab`, `scripting`:** Scan this tab. Pip reads a page only when you click the button.
+- **`alarms`, `notifications`:** focus timer and reminders.
+- **Host access:** only `localhost` and `127.0.0.1`.
 
-This is a local development extension. The existing backend has no user authentication, so it must not be exposed publicly as a shared service. A deployed multi-user version needs backend authentication and student isolation before public distribution. Load unpacked from this folder only, never the repository root.
+What is stored where:
+- Your current plan is kept in session storage.
+- The student ID, API address, mute setting, reminders and a running focus timer are kept in local storage.
+
+Snowflake secrets stay in `api/.env`. Never copy it into this folder.
+
+This is a local development extension. The backend has no authentication, so don't expose the API publicly.
 
 ## Manual smoke test
 
-- Create a typed plan; confirm all sections and evidence appear.
-- Open an HTML course outline, click **Scan this tab**, and confirm dated course work appears in the returned plan.
-- Submit at least two prompts and one follow-up; confirm all three appear under History after a refresh.
-- Rerank to 25 minutes; confirm the returned change headline appears.
-- Start a task; open History and verify the action.
-- Save a budget, add a class, and verify them after Refresh.
-- Toggle speech; test record, stop, preview, and explicit upload on a microphone-capable Chrome installation.
-- Stop the API and Refresh: the panel should show API offline and preserve the current visible plan.
-
-No credentials or external assets are packaged. The penguin is original CSS artwork.
+- Type a day and send. The pipeline stages reveal one by one, then the do-now card appears with a ticking countdown, and Pip speaks.
+- Hold the mic, talk, and release. The plan updates.
+- On Today, switch the timeline to 25 min. The What changed banner appears, cards glide, and an item lands in "Doesn't fit".
+- Tap **What if this takes 10 min longer?** A preview appears and the plan stays unchanged.
+- Tap **Start now**. The focus timer opens and the toolbar badge shows minutes left. **Skip to end** (demo mode) triggers the notification.
+- Open a task, then tap **Done**. History shows the action.
+- Add and delete a class on Schedule, then save Money & routine.
+- Add a reminder a minute ahead. A Chrome notification fires.
+- Stop the API and try to send. A banner explains that the server is unreachable.
