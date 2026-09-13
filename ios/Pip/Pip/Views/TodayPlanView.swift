@@ -3,11 +3,18 @@ import SwiftUI
 struct TodayPlanView: View {
     @Environment(AppModel.self) private var model
 
+    @State private var showReminders = false
+
     var body: some View {
         NavigationStack {
             content
                 .navigationTitle("Today")
+                .sheet(isPresented: $showReminders) { PipRemindersView(plan: model.currentPlan) }
                 .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { showReminders = true } label: { Image(systemName: "bell") }
+                            .accessibilityLabel("Reminders")
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             model.toggleMute()
@@ -70,6 +77,8 @@ private struct PlanScrollView: View {
                 }
 
                 answerAndWarnings
+
+                PlanSaveActions(plan: plan)
 
                 if let doNow = plan.doNow {
                     DoNowCard(item: doNow, planNow: plan.reasoning.now)

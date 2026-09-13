@@ -77,4 +77,11 @@ describe('PipService fallback', () => {
     expect(loadConfig({ DEMO_NOW: 'real' }).demoNow).toBe('real');
     expect(loadConfig({}).snowflake.database).toBe('PIP');
   });
+
+  it('config: accepts a PAT without a password and rejects blank credentials', () => {
+    const env = { SNOWFLAKE_ACCOUNT: 'a', SNOWFLAKE_USER: 'u', SNOWFLAKE_WAREHOUSE: 'w' };
+    expect(loadConfig({ ...env, SNOWFLAKE_TOKEN: 'test-token' }).mode).toBe('live');
+    expect(loadConfig({ ...env, SNOWFLAKE_TOKEN: '  ' }).mode).toBe('mock');
+    expect(loadConfig({ ...env, SNOWFLAKE_TOKEN: 'test-token', MOCK_MODE: 'true' }).mode).toBe('mock');
+  });
 });
