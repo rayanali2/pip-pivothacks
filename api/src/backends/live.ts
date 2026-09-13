@@ -15,6 +15,7 @@ import type {
   HistoryAction,
   HistoryResponse,
   JsonValue,
+  PipelineStage,
   PivotLogCreateRequest,
   PivotLogCreateResponse,
   PivotLogEntry,
@@ -38,16 +39,33 @@ import { createClock, dateOnly, isoDow, toIsoLocal, toNtzLocal, type Clock } fro
 import { errorMessage, log } from '../log';
 import { buildPlan, expiredTaskIds, hydratePlan, RANKER_MODEL, readCashValue } from '../ranker/plan';
 import { DEFAULT_DECAY_CONFIG } from '../ranker/decay';
-import { heuristicExtract } from '../ranker/extract';
+import { heuristicExtract, type ConstraintDraft } from '../ranker/extract';
 import { diffPlans } from '../ranker/diff';
-import { parseContextFromQuestion } from '../ranker/questions';
+import { mergeRerankContext } from '../ranker/questions';
 import { isExpired, isOpenStatus } from '../ranker/rules';
 import { computeFreeWindows } from '../ranker/windows';
 import { applyDemoCopy, applyDemoDiffCopy } from '../demo/fixtures';
+import { createTranscriptExtractor, type TranscriptExtractor } from '../llm/extractor';
+import {
+  cortexEngine,
+  elapsed,
+  ENGINE,
+  extractStage,
+  now as perfNow,
+  rankStage,
+  rerankExtractStage,
+  skippedStage,
+  snowflakeWordingEngine,
+  SQL_PRERANK_MODEL,
+  stage,
+  transcribeStage,
+  wordingStage,
+  type ChipTask,
+} from '../pipeline';
 import { isConnectionError, putFile, SnowflakeClient, withSqlLogging, withTimeout, type SqlExecutor } from '../snowflake/client';
 import { describeCortex, emptyCortexStatus, readCortexConfig, verifyCortex } from '../snowflake/cortex';
 import { PipRepo, readExtractResult, type ExtractSummary } from '../snowflake/repo';
-import { normalizePlanFromSnowflake, parseAction, procedureError } from '../snowflake/rows';
+import { asRecord, normalizePlanFromSnowflake, parseAction, procedureError } from '../snowflake/rows';
 import type { Backend, CaptureTextInput, CaptureVoiceInput, WarmPingResponse } from './backend';
 
 export interface LiveTimeouts {
@@ -65,6 +83,8 @@ export const DEFAULT_LIVE_TIMEOUTS: LiveTimeouts = { captureMs: 45_000, defaultM
 
 export interface LiveBackendOptions {
   timeouts?: Partial<LiveTimeouts>;
+  /** runs when EXTRACT_FROM_TRANSCRIPT errors or finds no tasks (Claude first when configured); default: heuristic parser only */
+  extractor?: TranscriptExtractor;
 }
 
 interface PlanRequest {
@@ -83,6 +103,8 @@ interface PlanOutcome {
   source: Source;
   /** open, non-expired tasks */
   tasks: Task[];
+  /** rank + wording pipeline stages */
+  stages: PipelineStage[];
 }
 
 interface Transcription {
@@ -115,6 +137,12 @@ function defaultProfile(studentId: string, updatedAt: string): Profile {
   };
 }
 
+/** BUILD_PLAN walked the Cortex chain and every attempt failed (it still returned a SQL pre-rank plan). */
+function hadCortexErrors(raw: unknown): boolean {
+  const errors = asRecord(raw)?.cortex_errors;
+  return Array.isArray(errors) && errors.length > 0;
+}
+
 /**
  * Snowflake-backed implementation. Plans come from CALL BUILD_PLAN (source 'snowflake'); when BUILD_PLAN fails or returns
  * an invalid plan, the TypeScript ranker runs over Snowflake-loaded data and the plan is stored in PLANS (source 'fallback').
@@ -127,6 +155,7 @@ export class LiveBackend implements Backend {
   private readonly repo: PipRepo;
   private readonly client: SnowflakeClient | null;
   private readonly timeouts: LiveTimeouts;
+  private readonly extractor: TranscriptExtractor;
   private lastWarmPingAt: string | null = null;
   /** verified by this process */
   private cortex: CortexStatus | null = null;
@@ -139,6 +168,7 @@ export class LiveBackend implements Backend {
     this.config = config;
     this.clock = clock ?? createClock({ demoNow: config.demoNow, mode: config.mode });
     this.timeouts = { ...DEFAULT_LIVE_TIMEOUTS, ...options.timeouts };
+    this.extractor = options.extractor ?? createTranscriptExtractor(null);
     if (executor) {
       this.client = null;
       this.db = withSqlLogging(executor);
@@ -239,6 +269,7 @@ export class LiveBackend implements Backend {
         last_warm_ping_at: this.lastWarmPingAt,
       },
       cortex: { ...cortex, errors: [...cortex.errors] },
+      claude: { ...this.extractor.claude },
     };
   }
 
@@ -251,19 +282,35 @@ export class LiveBackend implements Backend {
     const now = this.clock.now();
     const nowNtz = toNtzLocal(now);
     let plan: Plan | null = null;
+    let cortexFailed = false;
+    const callStarted = perfNow();
     try {
       const raw = await this.repo.callBuildPlan(req.studentId, req.captureId, { now_local: nowNtz, trigger: req.trigger, ...req.extra });
       const procError = procedureError(raw);
       if (procError !== null) throw new Error(`BUILD_PLAN returned error: ${procError}`);
+      cortexFailed = hadCortexErrors(raw);
       plan = normalizePlanFromSnowflake(raw);
     } catch (err) {
       if (isConnectionError(err)) throw err;
       log.warn(`BUILD_PLAN failed, building the plan with the TypeScript ranker: ${errorMessage(err)}`);
     }
+    const callMs = elapsed(callStarted);
 
     if (plan) {
       const [tasks, decay] = await Promise.all([this.repo.openTasks(req.studentId), this.repo.decay()]);
-      return { plan: hydratePlan(plan, tasks, decayOrDefault(decay), now), source: 'snowflake', tasks: openOnly(tasks, now) };
+      const hydrated = hydratePlan(plan, tasks, decayOrDefault(decay), now);
+      // a Cortex model wrote the wording even if earlier models in the chain failed; sql-prerank after errors is a step down
+      const wordingFellBack = cortexFailed && hydrated.model === SQL_PRERANK_MODEL;
+      return {
+        plan: hydrated,
+        source: 'snowflake',
+        tasks: openOnly(tasks, now),
+        stages: [
+          rankStage(ENGINE.sqlPreRank, 'ok', callMs, hydrated),
+          // BUILD_PLAN ranks and words in one call, so its time is on the rank stage
+          wordingStage(snowflakeWordingEngine(hydrated.model), wordingFellBack ? 'fallback' : 'ok', null, hydrated, wordingFellBack ? 'Cortex failed' : 'In BUILD_PLAN'),
+        ],
+      };
     }
 
     const [tasks, timetable, profile, constraints, decay] = await Promise.all([
@@ -274,6 +321,7 @@ export class LiveBackend implements Backend {
       this.repo.decay(),
     ]);
     const created = this.clock.realNow();
+    const rankStarted = perfNow();
     const raw = buildPlan({
       plan_id: randomUUID(),
       student_id: req.studentId,
@@ -290,34 +338,67 @@ export class LiveBackend implements Backend {
       decay: decayOrDefault(decay),
       model: RANKER_MODEL,
     });
+    const rankMs = elapsed(rankStarted);
+    const wordingStarted = perfNow();
     const fallbackPlan = applyDemoCopy(raw, tasks, { pinned: this.clock.pinned, now });
+    const wordingMs = elapsed(wordingStarted);
     if (expiredTaskIds(tasks, now).length > 0) await this.repo.expireTasks(req.studentId, nowNtz);
     await this.repo.insertPlan(fallbackPlan);
-    return { plan: fallbackPlan, source: 'fallback', tasks: openOnly(tasks, now) };
+    return {
+      plan: fallbackPlan,
+      source: 'fallback',
+      tasks: openOnly(tasks, now),
+      stages: [
+        rankStage(ENGINE.tsRanker, 'fallback', rankMs, fallbackPlan, 'BUILD_PLAN failed'),
+        wordingStage(ENGINE.templates, 'fallback', wordingMs, fallbackPlan),
+      ],
+    };
   }
 
-  /** EXTRACT_FROM_TRANSCRIPT; when it errors or finds no tasks, the heuristic extractor writes to Snowflake instead. */
-  private async extractForCapture(capture: Capture, now: Date): Promise<void> {
-    if (capture.transcript.trim() === '') return;
+  /**
+   * EXTRACT_FROM_TRANSCRIPT; when it errors or finds no tasks, the transcript extractor (Claude when configured, then the
+   * heuristic parser) writes to Snowflake instead. Returns the extract pipeline stage.
+   */
+  private async extractForCapture(capture: Capture, now: Date, question: string | null): Promise<PipelineStage> {
+    if (capture.transcript.trim() === '') return skippedStage('extract', 'Empty transcript');
+    const started = perfNow();
     let summary: ExtractSummary;
     try {
       summary = readExtractResult(await this.repo.callExtract(capture.capture_id));
     } catch (err) {
       if (isConnectionError(err)) throw err;
-      summary = { taskCount: 0, constraintCount: 0, model: null, error: errorMessage(err) };
+      summary = { taskCount: 0, constraintCount: 0, model: null, error: errorMessage(err), tasks: [], constraints: [] };
     }
     if (summary.error === null && summary.taskCount > 0) {
       log.info(`EXTRACT_FROM_TRANSCRIPT (${summary.model ?? 'unknown model'}): ${summary.taskCount} task(s), ${summary.constraintCount} constraint(s)`);
-      return;
+      return extractStage({
+        engine: cortexEngine(summary.model ?? 'unknown model'),
+        status: 'ok',
+        ms: elapsed(started),
+        tasks: summary.tasks,
+        constraints: summary.constraints,
+        question,
+        at: now,
+      });
     }
 
     const studentId = capture.student_id;
     const writeConstraints = summary.error !== null || summary.constraintCount === 0;
-    const extracted = heuristicExtract(capture.transcript, now, openOnly(await this.repo.openTasks(studentId), now));
+    const open = openOnly(await this.repo.openTasks(studentId), now);
+    const outcome = await this.extractor.extract(capture.transcript, now, open);
+    const extracted = outcome.result;
+    const openById = new Map(open.map((t) => [t.task_id, t] as const));
     const realIso = this.realIso();
+    const touched: ChipTask[] = [];
     for (const draft of extracted.tasks) {
       if (draft.merge_into) {
         await this.repo.mergeTask(studentId, draft.merge_into, capture.capture_id, draft);
+        const target = openById.get(draft.merge_into);
+        touched.push({
+          normalized_text: target ? target.normalized_text : draft.normalized_text,
+          due_at: draft.due_at ?? target?.due_at ?? null,
+          money_at_risk: draft.money_at_risk ?? target?.money_at_risk ?? null,
+        });
       } else {
         await this.repo.insertTask({
           task_id: randomUUID(),
@@ -333,13 +414,14 @@ export class LiveBackend implements Backend {
           defer_count: 0,
           created_at: toIsoLocal(now),
         });
+        touched.push(draft);
       }
     }
-    let constraintCount = 0;
+    const written: ConstraintDraft[] = [];
     if (writeConstraints) {
       for (const c of extracted.constraints) {
         await this.repo.insertConstraint({ constraint_id: randomUUID(), capture_id: capture.capture_id, kind: c.kind, value: c.value, created_at: realIso });
-        constraintCount += 1;
+        written.push(c);
         if (c.kind === 'cash') {
           const cash = readCashValue(c.value);
           if (cash) await this.repo.applyCash(studentId, cash.amount, cash.until, realIso);
@@ -347,9 +429,21 @@ export class LiveBackend implements Backend {
       }
     }
     const reason = summary.error !== null ? `error (${summary.error})` : 'no tasks';
-    const message = `EXTRACT_FROM_TRANSCRIPT returned ${reason}; heuristic extractor wrote ${extracted.tasks.length} task(s) and ${constraintCount} constraint(s) to Snowflake`;
+    const message = `EXTRACT_FROM_TRANSCRIPT returned ${reason}; ${outcome.engine} wrote ${extracted.tasks.length} task(s) and ${written.length} constraint(s) to Snowflake`;
     if (summary.error !== null || extracted.tasks.length > 0) log.warn(message);
     else log.info(message);
+
+    const cortexNote = summary.error !== null ? 'Cortex extraction failed' : 'Cortex found no tasks';
+    return extractStage({
+      engine: outcome.engine,
+      status: 'fallback',
+      ms: elapsed(started),
+      tasks: touched,
+      constraints: writeConstraints ? written : summary.constraints,
+      question,
+      at: now,
+      note: outcome.note ? `${cortexNote} · ${outcome.note}` : cortexNote,
+    });
   }
 
   private newCapture(studentId: string, transcript: string, source: CaptureSource, audioStagePath: string | null): Capture {
@@ -363,14 +457,15 @@ export class LiveBackend implements Backend {
     };
   }
 
-  private async captureFlow(capture: Capture): Promise<CaptureResponse> {
+  private async captureFlow(capture: Capture, transcribe: PipelineStage): Promise<CaptureResponse> {
     const now = this.clock.now();
-    await this.extractForCapture(capture, now);
+    const question = heuristicExtract(capture.transcript, now, []).question;
+    const extract = await this.extractForCapture(capture, now, question);
     const outcome = await this.planWithFallback({
       studentId: capture.student_id,
       captureId: capture.capture_id,
       trigger: 'capture',
-      context: { available_minutes: null, cash_available: null, question: heuristicExtract(capture.transcript, now, []).question },
+      context: { available_minutes: null, cash_available: null, question },
       extra: {},
       previous: null,
     });
@@ -383,19 +478,21 @@ export class LiveBackend implements Backend {
       plan: outcome.plan,
       diff: null,
       previous_plan_id: null,
+      pipeline: [transcribe, extract, ...outcome.stages],
     };
   }
 
-  private async rerankFlow(req: RerankRequest, followup: Capture | null): Promise<{ response: RerankResponse; tasks: Task[] }> {
+  private async previousPlan(req: RerankRequest): Promise<Plan> {
     const previous = (await this.repo.plan(req.student_id, req.plan_id)) ?? (await this.repo.latestPlan(req.student_id));
     if (!previous) throw new Error(`no stored plan for student ${req.student_id}`);
-    const prevCtx = previous.reasoning.context;
-    const parsed = parseContextFromQuestion(req.context.question);
-    const context: PlanContext = {
-      available_minutes: req.context.available_minutes ?? parsed.available_minutes ?? prevCtx.available_minutes,
-      cash_available: req.context.cash_available ?? parsed.cash_available ?? prevCtx.cash_available,
-      question: req.context.question ?? prevCtx.question,
-    };
+    return previous;
+  }
+
+  private async rerankFlow(req: RerankRequest, followup: Capture | null, transcribe: PipelineStage | null): Promise<{ response: RerankResponse; tasks: Task[] }> {
+    const previous = await this.previousPlan(req);
+    const extractStarted = perfNow();
+    const { context, parsed } = mergeRerankContext(previous.reasoning.context, req.context);
+    const extract = rerankExtractStage(req.context.question, parsed, req.context, elapsed(extractStarted));
     let captureId = previous.capture_id;
     if (followup) {
       // the follow-up capture carries the previous capture's constraints (fixed blocks, cash, time window) forward
@@ -418,13 +515,74 @@ export class LiveBackend implements Backend {
     const now = this.clock.now();
     const diff = applyDemoDiffCopy(diffPlans(previous, outcome.plan), previous, outcome.plan, outcome.tasks, { pinned: this.clock.pinned, now });
     return {
-      response: { source: outcome.source, plan: outcome.plan, previous_plan_id: previous.plan_id, diff },
+      response: {
+        source: outcome.source,
+        plan: outcome.plan,
+        previous_plan_id: previous.plan_id,
+        diff,
+        pipeline: [transcribe ?? skippedStage('transcribe', 'Nothing new to transcribe'), extract, ...outcome.stages],
+      },
       tasks: outcome.tasks,
     };
   }
 
-  private async followup(capture: Capture, planId: string): Promise<CaptureResponse> {
-    const r = await this.rerankFlow({ student_id: capture.student_id, plan_id: planId, context: { question: capture.transcript } }, capture);
+  /**
+   * preview: true. BUILD_PLAN always inserts into PLANS, so a preview runs the TypeScript ranker over Snowflake-loaded data
+   * (source 'fallback') and writes nothing: no PLANS row, no expired-task update, no constraint copy.
+   */
+  private async previewFlow(req: RerankRequest): Promise<RerankResponse> {
+    const previous = await this.previousPlan(req);
+    const extractStarted = perfNow();
+    const { context, parsed } = mergeRerankContext(previous.reasoning.context, req.context);
+    const extract = rerankExtractStage(req.context.question, parsed, req.context, elapsed(extractStarted));
+    const now = this.clock.now();
+    const [tasks, timetable, profile, constraints, decay] = await Promise.all([
+      this.repo.openTasks(req.student_id),
+      this.repo.timetable(req.student_id),
+      this.repo.profile(req.student_id),
+      previous.capture_id ? this.repo.constraints(previous.capture_id) : Promise.resolve([]),
+      this.repo.decay(),
+    ]);
+    const created = toIsoLocal(this.clock.realNow());
+    const rankStarted = perfNow();
+    const raw = buildPlan({
+      plan_id: `preview-${randomUUID()}`,
+      student_id: req.student_id,
+      capture_id: previous.capture_id,
+      created_at: created,
+      now,
+      tasks,
+      timetable,
+      profile: profile ?? defaultProfile(req.student_id, created),
+      constraints,
+      context,
+      trigger: 'rerank',
+      previous_plan: previous,
+      decay: decayOrDefault(decay),
+      model: RANKER_MODEL,
+    });
+    const rankMs = elapsed(rankStarted);
+    const wordingStarted = perfNow();
+    const plan = applyDemoCopy(raw, tasks, { pinned: this.clock.pinned, now });
+    const wordingMs = elapsed(wordingStarted);
+    const open = openOnly(tasks, now);
+    const diff = applyDemoDiffCopy(diffPlans(previous, plan), previous, plan, open, { pinned: this.clock.pinned, now });
+    return {
+      source: 'fallback',
+      plan,
+      previous_plan_id: previous.plan_id,
+      diff,
+      pipeline: [
+        skippedStage('transcribe', 'Nothing new to transcribe'),
+        extract,
+        rankStage(ENGINE.tsRanker, 'ok', rankMs, plan, 'Preview, not saved'),
+        wordingStage(ENGINE.templates, 'ok', wordingMs, plan),
+      ],
+    };
+  }
+
+  private async followup(capture: Capture, planId: string, transcribe: PipelineStage): Promise<CaptureResponse> {
+    const r = await this.rerankFlow({ student_id: capture.student_id, plan_id: planId, context: { question: capture.transcript } }, capture, transcribe);
     return {
       source: r.response.source,
       capture,
@@ -434,12 +592,19 @@ export class LiveBackend implements Backend {
       plan: r.response.plan,
       diff: r.response.diff,
       previous_plan_id: r.response.previous_plan_id,
+      pipeline: r.response.pipeline,
     };
   }
 
   /** Transcription failed or no audio: the latest stored plan (or a fresh one) with needs_text true. */
-  private async needsText(capture: Capture): Promise<CaptureResponse> {
+  private async needsText(capture: Capture, transcribeMs: number | null): Promise<CaptureResponse> {
     const now = this.clock.now();
+    // Only name AI_TRANSCRIBE when it actually ran (transcribeMs is set); with no audio nothing transcribed.
+    const transcribe =
+      transcribeMs === null
+        ? skippedStage('transcribe', 'No audio uploaded · type instead')
+        : stage('transcribe', ENGINE.aiTranscribe, 'fallback', 'No speech recognized · type instead', transcribeMs);
+    const extract = skippedStage('extract', 'Waiting for typed text');
     const latest = await this.repo.latestPlan(capture.student_id);
     if (latest) {
       const [tasks, decay] = await Promise.all([this.repo.openTasks(capture.student_id), this.repo.decay()]);
@@ -452,6 +617,7 @@ export class LiveBackend implements Backend {
         plan: hydratePlan(latest, tasks, decayOrDefault(decay), now),
         diff: null,
         previous_plan_id: null,
+        pipeline: [transcribe, extract, skippedStage('rank', 'Showing your last plan'), skippedStage('wording', 'Showing your last plan')],
       };
     }
     const outcome = await this.planWithFallback({
@@ -462,7 +628,17 @@ export class LiveBackend implements Backend {
       extra: {},
       previous: null,
     });
-    return { source: outcome.source, capture, transcript: '', needs_text: true, tasks: outcome.tasks, plan: outcome.plan, diff: null, previous_plan_id: null };
+    return {
+      source: outcome.source,
+      capture,
+      transcript: '',
+      needs_text: true,
+      tasks: outcome.tasks,
+      plan: outcome.plan,
+      diff: null,
+      previous_plan_id: null,
+      pipeline: [transcribe, extract, ...outcome.stages],
+    };
   }
 
   /** PUT the audio as capture-<uuid>.m4a and AI_TRANSCRIBE it; on failure re-PUT the same bytes as .mp4 and retry once. */
@@ -505,33 +681,57 @@ export class LiveBackend implements Backend {
     return this.guard('captureText', this.timeouts.captureMs, async () => {
       const capture = this.newCapture(input.student_id, input.text.trim(), 'text', null);
       await this.repo.insertCapture(capture);
-      if (input.followup_plan_id) return this.followup(capture, input.followup_plan_id);
-      return this.captureFlow(capture);
+      const transcribe = transcribeStage(ENGINE.typed, 'ok', capture.transcript, null);
+      if (input.followup_plan_id) return this.followup(capture, input.followup_plan_id, transcribe);
+      return this.captureFlow(capture, transcribe);
     });
   }
 
+  /**
+   * AI_TRANSCRIBE first. When there is no audio, or it fails or hears nothing, the app's on-device transcript (if sent)
+   * is used with the transcribe stage marked 'fallback'; without one the student is asked to type (needs_text).
+   */
   captureVoice(input: CaptureVoiceInput): Promise<CaptureResponse> {
     return this.guard('captureVoice', this.timeouts.captureMs, async () => {
+      const onDevice = input.client_transcript?.trim() ?? '';
       const audio = input.audio;
-      if (!audio || audio.buffer.length === 0) {
-        return this.needsText(this.newCapture(input.student_id, '', 'text', null));
+      let stagePath: string | null = null;
+      let transcribeMs: number | null = null;
+      let failure = 'No audio uploaded';
+      if (audio && audio.buffer.length > 0) {
+        const started = perfNow();
+        const t = await this.transcribeUpload(input.student_id, audio.buffer);
+        transcribeMs = elapsed(started);
+        stagePath = t.stagePath;
+        const transcript = t.transcript === null ? '' : t.transcript.trim();
+        if (transcript !== '') {
+          const capture = this.newCapture(input.student_id, transcript, 'voice', t.stagePath);
+          await this.repo.insertCapture(capture);
+          const transcribe = transcribeStage(ENGINE.aiTranscribe, 'ok', transcript, transcribeMs);
+          if (input.followup_plan_id) return this.followup(capture, input.followup_plan_id, transcribe);
+          return this.captureFlow(capture, transcribe);
+        }
+        failure = t.transcript === null ? 'AI_TRANSCRIBE failed' : 'AI_TRANSCRIBE heard nothing';
       }
-      const t = await this.transcribeUpload(input.student_id, audio.buffer);
-      const transcript = t.transcript === null ? '' : t.transcript.trim();
-      if (transcript === '') {
-        const capture = this.newCapture(input.student_id, '', 'text', t.stagePath);
+
+      if (onDevice !== '') {
+        log.warn(`${failure}; using the on-device transcript from the app`);
+        const capture = this.newCapture(input.student_id, onDevice, 'voice', stagePath);
         await this.repo.insertCapture(capture);
-        return this.needsText(capture);
+        const transcribe = transcribeStage(ENGINE.onDevice, 'fallback', onDevice, transcribeMs, failure);
+        if (input.followup_plan_id) return this.followup(capture, input.followup_plan_id, transcribe);
+        return this.captureFlow(capture, transcribe);
       }
-      const capture = this.newCapture(input.student_id, transcript, 'voice', t.stagePath);
+
+      if (stagePath === null) return this.needsText(this.newCapture(input.student_id, '', 'text', null), null);
+      const capture = this.newCapture(input.student_id, '', 'text', stagePath);
       await this.repo.insertCapture(capture);
-      if (input.followup_plan_id) return this.followup(capture, input.followup_plan_id);
-      return this.captureFlow(capture);
+      return this.needsText(capture, transcribeMs);
     });
   }
 
   rerank(req: RerankRequest): Promise<RerankResponse> {
-    return this.guard('rerank', this.timeouts.captureMs, async () => (await this.rerankFlow(req, null)).response);
+    return this.guard('rerank', this.timeouts.captureMs, async () => (req.preview ? this.previewFlow(req) : (await this.rerankFlow(req, null, null)).response));
   }
 
   timetableToday(studentId: string): Promise<TodayTimetableResponse> {

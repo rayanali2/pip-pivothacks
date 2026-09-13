@@ -7,6 +7,27 @@ enum SampleData {
     static let plan: Plan? = decode(Plan.self, from: planJSON)
     static let tasks: [PipTask] = decode([PipTask].self, from: tasksJSON) ?? []
     static let todayTimetable: TodayTimetableResponse? = decode(TodayTimetableResponse.self, from: todayJSON)
+    /// Stages as the local engines report them (nothing here claims Snowflake or Claude).
+    static let pipeline: [PipelineStage] = decode([PipelineStage].self, from: pipelineJSON) ?? []
+
+    /// A focus session on the sample do-now, started just now.
+    static var focusSession: FocusSession? {
+        guard let item = plan?.doNow else { return nil }
+        let now = Date()
+        return FocusSession(
+            id: "focus-preview",
+            item: item,
+            title: item.title,
+            action: item.action,
+            startedAt: now,
+            endsAt: now.addingTimeInterval(35 * 60),
+            plannedMinutes: 35,
+            extendedMinutes: 0,
+            nextLabel: "CHEM 110 Lab · 2:00 PM",
+            nextLocation: "Science Hall 204",
+            moneyAtRisk: item.moneyAtRisk
+        )
+    }
 
     static func decode<T: Decodable>(_ type: T.Type, from json: String) -> T? {
         let decoder = PipCoding.makeDecoder()
@@ -143,6 +164,22 @@ enum SampleData {
         "due_at": "2026-09-14T17:00:00-07:00", "money_at_risk": 79, "est_minutes": 35,
         "status": "open", "defer_count": 0, "created_at": "2026-09-13T17:13:00-07:00"
       }
+    ]
+    """
+
+    private static let pipelineJSON = """
+    [
+      {"id": "transcribe", "label": "Heard you", "engine": "On-device speech (iOS)", "detail": "36 words", "status": "ok", "ms": 820, "chips": []},
+      {"id": "extract", "label": "Pulled out tasks", "engine": "Heuristic parser", "detail": "3 tasks · 2 constraints", "status": "fallback", "ms": 14, "chips": [
+        {"kind": "fixed_block", "label": "Lab 2:00 PM"},
+        {"kind": "task", "label": "Return headphones by 5 PM"},
+        {"kind": "task", "label": "CS 101 assignment"},
+        {"kind": "task", "label": "Buy groceries"},
+        {"kind": "cash", "label": "$35 until Friday"},
+        {"kind": "question", "label": "What should I do?"}
+      ]},
+      {"id": "rank", "label": "Ranked against 5 rules", "engine": "Deterministic 5-rule ranker", "detail": "6 tasks scored · do now: Return headphones", "status": "ok", "ms": 6, "chips": []},
+      {"id": "wording", "label": "Wrote your plan", "engine": "Templates", "detail": "47 min free · 7 items", "status": "ok", "ms": 2, "chips": []}
     ]
     """
 

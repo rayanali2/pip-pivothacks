@@ -1,10 +1,10 @@
 {
   "source": "fallback",
   "plan": {
-    "plan_id": "plan-21242141b982",
+    "plan_id": "plan-2bfc096938a0",
     "student_id": "demo",
-    "capture_id": "capture-8bdcd9dfa5af",
-    "created_at": "2026-09-13T11:15:29-04:00",
+    "capture_id": "capture-ff1dad9b2645",
+    "created_at": "2026-09-13T15:39:25-04:00",
     "model": "deterministic-ranker-v1",
     "do_now": {
       "item_id": "demo-assignment",
@@ -833,10 +833,10 @@
         }
       ],
       "trigger": "rerank",
-      "previous_plan_id": "plan-ff78a90bbdf3"
+      "previous_plan_id": "plan-2666dfeff278"
     }
   },
-  "previous_plan_id": "plan-ff78a90bbdf3",
+  "previous_plan_id": "plan-2666dfeff278",
   "diff": {
     "headline": "Only 25 min: the 35-min headphones return won't fit before Lab ($79 at risk), so do now is the assignment outline.",
     "do_now_changed": true,
@@ -870,5 +870,52 @@
         "reason": "The rest of the work continues after do now"
       }
     ]
-  }
+  },
+  "pipeline": [
+    {
+      "id": "transcribe",
+      "label": "Heard you",
+      "engine": "Not needed",
+      "detail": "Nothing new to transcribe",
+      "status": "skipped",
+      "ms": null,
+      "chips": []
+    },
+    {
+      "id": "extract",
+      "label": "Pulled out tasks",
+      "engine": "Heuristic parser",
+      "detail": "Parsed 25 min from your question",
+      "status": "ok",
+      "ms": 0,
+      "chips": [
+        {
+          "kind": "time_window",
+          "label": "25 min free"
+        },
+        {
+          "kind": "question",
+          "label": "I only have 25 minutes"
+        }
+      ]
+    },
+    {
+      "id": "rank",
+      "label": "Ranked against 5 rules",
+      "engine": "Deterministic 5-rule ranker",
+      "detail": "6 tasks scored · do now: Outline CS 101 assignment",
+      "status": "ok",
+      "ms": 1,
+      "chips": []
+    },
+    {
+      "id": "wording",
+      "label": "Wrote your plan",
+      "engine": "Templates",
+      "detail": "8 items + summary",
+      "status": "ok",
+      "ms": 0,
+      "chips": []
+    }
+  ]
 }

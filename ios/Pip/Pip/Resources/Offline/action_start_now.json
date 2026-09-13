@@ -1,12 +1,12 @@
 {
   "source": "fallback",
   "action": {
-    "action_id": "action-bcf80a2f2d0f",
+    "action_id": "action-2bd8702ac4b0",
     "student_id": "demo",
-    "plan_id": "plan-21242141b982",
+    "plan_id": "plan-2bfc096938a0",
     "task_id": "demo-assignment",
     "kind": "start_now",
-    "created_at": "2026-09-13T11:15:29-04:00"
+    "created_at": "2026-09-13T15:39:25-04:00"
   },
   "task": {
     "task_id": "demo-assignment",

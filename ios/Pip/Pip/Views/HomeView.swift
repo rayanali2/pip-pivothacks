@@ -8,7 +8,7 @@ struct HomeView: View {
     @State private var submittedText = ""
 
     private var trimmedTyped: String { typedText.trimmingCharacters(in: .whitespacesAndNewlines) }
-    private var hasResult: Bool { model.hasCapture && model.currentPlan?.doNow != nil && !model.needsText && model.pipState != .listening }
+    private var hasResult: Bool { model.hasCapture && model.currentPlan?.doNow != nil && !model.needsText && model.pipState != .listening && !model.isRevealingPipeline }
 
     var body: some View {
         ScrollView {
@@ -16,9 +16,8 @@ struct HomeView: View {
                 header
                 HomeContextStrip()
                 hero
-                if model.pipState == .thinking {
-                    PipStatusView(symbol: "", title: "Finding your next step", detail: "Checking time, tasks and deadlines", loading: true)
-                        .pipCard()
+                if model.pipState == .thinking || model.isRevealingPipeline {
+                    PipelineRevealView()
                     if !submittedText.isEmpty {
                         Text("“\(submittedText)”").font(.footnote).foregroundStyle(PipDesign.secondary)
                             .fixedSize(horizontal: false, vertical: true)

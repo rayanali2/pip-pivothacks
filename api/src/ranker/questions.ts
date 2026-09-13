@@ -1,4 +1,4 @@
-import type { RuleId, Task } from '../types';
+import type { PlanContext, RerankRequest, RuleId, Task } from '../types';
 import { formatDay, formatDue, formatTime, formatWhen, tryParseIsoLocal } from '../clock';
 import type { MoneyFacts } from './rules';
 import { dollars, plural } from './text';
@@ -24,6 +24,25 @@ export function parseContextFromQuestion(question: string | null | undefined): P
   return {
     available_minutes: minutes !== null && Number.isFinite(minutes) ? minutes : null,
     cash_available: cash ? Number(cash[1]) : null,
+  };
+}
+
+/**
+ * CONTRACT section 3 rerank context: the previous plan's context is carried forward and the request merged on top.
+ * An explicit available_minutes / cash_available replaces the carried value; a value the request leaves out is parsed
+ * from its question, else carried. A request that sets minutes or cash without a new question drops the carried
+ * question, because that question's numbers no longer apply.
+ */
+export function mergeRerankContext(previous: PlanContext, next: RerankRequest['context']): { context: PlanContext; parsed: ParsedQuestionContext } {
+  const parsed = parseContextFromQuestion(next.question);
+  const explicit = next.available_minutes !== undefined || next.cash_available !== undefined;
+  return {
+    context: {
+      available_minutes: next.available_minutes ?? parsed.available_minutes ?? previous.available_minutes,
+      cash_available: next.cash_available ?? parsed.cash_available ?? previous.cash_available,
+      question: next.question ?? (explicit ? null : previous.question),
+    },
+    parsed,
   };
 }
 

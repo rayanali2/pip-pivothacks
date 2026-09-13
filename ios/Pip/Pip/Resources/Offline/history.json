@@ -3,9 +3,9 @@
   "student_id": "demo",
   "entries": [
     {
-      "plan_id": "plan-21242141b982",
-      "capture_id": "capture-8bdcd9dfa5af",
-      "created_at": "2026-09-13T11:15:29-04:00",
+      "plan_id": "plan-2bfc096938a0",
+      "capture_id": "capture-ff1dad9b2645",
+      "created_at": "2026-09-13T15:39:25-04:00",
       "model": "deterministic-ranker-v1",
       "trigger": "rerank",
       "transcript": "I only have 25 minutes",
@@ -20,20 +20,20 @@
       "changed": "do now: Return headphones → Outline CS 101 assignment",
       "actions": [
         {
-          "action_id": "action-bcf80a2f2d0f",
+          "action_id": "action-2bd8702ac4b0",
           "student_id": "demo",
-          "plan_id": "plan-21242141b982",
+          "plan_id": "plan-2bfc096938a0",
           "task_id": "demo-assignment",
           "kind": "start_now",
-          "created_at": "2026-09-13T11:15:29-04:00",
+          "created_at": "2026-09-13T15:39:25-04:00",
           "task_title": "Outline CS 101 assignment"
         }
       ]
     },
     {
-      "plan_id": "plan-ff78a90bbdf3",
-      "capture_id": "capture-8bdcd9dfa5af",
-      "created_at": "2026-09-13T11:15:29-04:00",
+      "plan_id": "plan-2666dfeff278",
+      "capture_id": "capture-ff1dad9b2645",
+      "created_at": "2026-09-13T15:39:25-04:00",
       "model": "deterministic-ranker-v1",
       "trigger": "capture",
       "transcript": "I have a 2 PM lab. I need to return headphones by 5 PM or lose the refund. My assignment is due tomorrow. I need groceries, and I have $35 until Friday. What should I do?",
@@ -49,9 +49,9 @@
       "actions": []
     },
     {
-      "plan_id": "plan-2a79d16fb114",
+      "plan_id": "plan-8dbb6e25c473",
       "capture_id": "demo-capture-seed",
-      "created_at": "2026-09-13T11:15:28-04:00",
+      "created_at": "2026-09-13T15:39:25-04:00",
       "model": "deterministic-ranker-v1",
       "trigger": "seed",
       "transcript": null,

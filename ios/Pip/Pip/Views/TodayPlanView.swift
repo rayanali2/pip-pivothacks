@@ -114,13 +114,7 @@ private struct PlanScrollView: View {
                 .padding(.vertical, -6)
                 .pipCard()
 
-                if let next = plan.next {
-                    PlanSectionList(title: "Next", items: [next], planNow: plan.reasoning.now)
-                }
-
-                if !plan.today.isEmpty {
-                    PlanSectionList(title: "Today", items: plan.today, planNow: plan.reasoning.now)
-                }
+                DayTimelineView(plan: plan)
 
                 if !plan.canWait.isEmpty {
                     PlanSectionList(title: "Can wait", items: plan.canWait, planNow: plan.reasoning.now)
@@ -213,22 +207,6 @@ struct DoNowCard: View {
         model.startNowConfirmation == item.itemId
     }
 
-    private var dueText: String? {
-        guard let dueAt = item.dueAt, let time = DateFormatting.smartTime(dueAt, relativeTo: planNow) else {
-            return nil
-        }
-        var text = "Due \(time)"
-        if let relative = DateFormatting.relative(dueAt, from: planNow) {
-            text += " · \(relative)"
-        }
-        return text
-    }
-
-    private var moneyText: String? {
-        guard let money = item.moneyAtRisk, money > 0 else { return nil }
-        return "\(MoneyFormatting.dollars(money)) at risk"
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ViewThatFits(in: .horizontal) {
@@ -247,21 +225,16 @@ struct DoNowCard: View {
                 .font(PipDesign.title)
                 .fixedSize(horizontal: false, vertical: true)
 
+            DoNowStakesStrip(item: item, planNow: planNow)
+
             Text(item.action)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if item.estMinutes != nil || dueText != nil || moneyText != nil {
+            // Due time and money at risk live in DoNowStakesStrip above.
+            if let minutes = item.estMinutes {
                 PipFlowLayout {
-                    if let minutes = item.estMinutes {
-                        PipPill(text: "\(minutes) min", systemImage: "timer")
-                    }
-                    if let dueText {
-                        PipPill(text: dueText, systemImage: "calendar", tint: PipDesign.secondary)
-                    }
-                    if let moneyText {
-                        PipPill(text: moneyText, systemImage: "dollarsign.circle", tint: PipDesign.danger)
-                    }
+                    PipPill(text: "\(minutes) min", systemImage: "timer")
                 }
             }
 
@@ -280,6 +253,8 @@ struct DoNowCard: View {
                     .foregroundStyle(PipDesign.positive)
                     .transition(.opacity)
             }
+
+            OverrunPreviewButton(item: item)
 
             // Reason sits under the action so Start stays above the fold on small iPhones.
             Text(item.why)

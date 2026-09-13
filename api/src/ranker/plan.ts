@@ -467,7 +467,11 @@ export function buildPlan(input: BuildPlanInput): Plan {
   const freeMinutes = first ? first.window.minutes : 0;
   const nb = first ? first.next : null;
   const windowStart = first ? (tryParseIsoLocal(first.window.starts_at) ?? now) : now;
-  const limits = [input.context.available_minutes, cf.timeWindow].filter((x): x is number => x !== null && Number.isFinite(x));
+  // context.available_minutes (explicit, parsed or carried by a rerank) takes precedence over a capture time_window,
+  // as in BUILD_PLAN (snowflake/NOTES.md), so a rerank back to the full window really clears an earlier "25 minutes".
+  const available = input.context.available_minutes;
+  const stated = available !== null && Number.isFinite(available) ? available : cf.timeWindow;
+  const limits = stated === null ? [] : [stated];
   const effective = Math.max(0, Math.floor(Math.min(freeMinutes, ...limits)));
 
   const money = computeMoney(input.profile, cf.cash, input.context.cash_available, now);
