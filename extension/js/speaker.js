@@ -24,13 +24,17 @@ export class Speaker {
     }
   }
 
+  /** Installed voices first: Chrome's network voices can stop mid-sentence without an end event. */
   pickVoice() {
-    const voices = speechSynthesis.getVoices().filter((v) => v.lang === 'en-US' || v.lang === 'en_US');
-    for (const name of NATURAL_NAMES) {
-      const match = voices.find((v) => v.name.startsWith(name));
-      if (match) { this.voice = match; return; }
+    const english = speechSynthesis.getVoices().filter((v) => v.lang === 'en-US' || v.lang === 'en_US');
+    for (const voices of [english.filter((v) => v.localService), english]) {
+      for (const name of NATURAL_NAMES) {
+        const match = voices.find((v) => v.name.startsWith(name));
+        if (match) { this.voice = match; return; }
+      }
+      if (voices.length) { this.voice = voices[0]; return; }
     }
-    this.voice = voices[0] || null;
+    this.voice = null;
   }
 
   /** Starts speaking `text`; returns whether anything will be spoken. */
@@ -73,10 +77,13 @@ export class Speaker {
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     this.audio = audio;
+    this.audioUrl = url;
+    // Ended, paused from outside the page (media keys), or stopped: the blob is freed every way playback ends.
     const finish = () => {
       URL.revokeObjectURL(url);
       if (this.audio !== audio) return;
       this.audio = null;
+      this.audioUrl = null;
       this.stopPulses();
       this.setSpeaking(false);
     };
@@ -86,16 +93,19 @@ export class Speaker {
       this.startPulses(audio);
     }, { once: true });
     audio.addEventListener('ended', finish);
+    audio.addEventListener('pause', finish);
     audio.addEventListener('error', () => {
       URL.revokeObjectURL(url);
       if (this.audio !== audio || token !== this.generation) return;
       this.audio = null;
+      this.audioUrl = null;
       this.speakOnDevice(text, token);
     });
     audio.play().catch(() => {
-      if (this.audio !== audio || token !== this.generation) return;
       URL.revokeObjectURL(url);
+      if (this.audio !== audio || token !== this.generation) return;
       this.audio = null;
+      this.audioUrl = null;
       this.speakOnDevice(text, token);
     });
   }
@@ -164,7 +174,13 @@ export class Speaker {
     this.generation += 1;
     this.controller?.abort();
     this.controller = null;
-    if (this.audio) { this.audio.pause(); this.audio = null; }
+    if (this.audio) {
+      const audio = this.audio;
+      this.audio = null;
+      audio.pause();
+      audio.removeAttribute('src');
+    }
+    if (this.audioUrl) { URL.revokeObjectURL(this.audioUrl); this.audioUrl = null; }
     this.stopPulses();
     this.utterance = null;
     if ('speechSynthesis' in window) speechSynthesis.cancel();
