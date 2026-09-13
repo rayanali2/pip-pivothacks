@@ -103,17 +103,7 @@ private struct PlanScrollView: View {
 
                 answerAndWarnings
 
-                DisclosureGroup {
-                    ContextSection().padding(.top, 12).padding(.bottom, 6)
-                } label: {
-                    Label("Time check", systemImage: "clock.arrow.circlepath")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .padding(.vertical, -6)
-                .pipCard()
-
+                // The timeline's free-time control replaces the separate context check, so Today has one do-now.
                 DayTimelineView(plan: plan)
 
                 if !plan.canWait.isEmpty {
@@ -520,6 +510,7 @@ private struct TodayFocusCard: View {
             }
             Text(item.title).font(.system(.title, design: .rounded, weight: .bold))
                 .fixedSize(horizontal: false, vertical: true)
+            DoNowStakesStrip(item: item, planNow: plan.reasoning.now)
             TaskMetadata(item: item, now: plan.reasoning.now)
             if let available, let used = PlanVisuals.windowMinutes(item) {
                 WindowFitView(used: used, available: available)
@@ -532,6 +523,7 @@ private struct TodayFocusCard: View {
                 Label(started ? "Started" : "Start now", systemImage: started ? "checkmark" : "play.fill")
             }
             .buttonStyle(PrimaryButtonStyle()).disabled(started)
+            OverrunPreviewButton(item: item)
             if item.opensDetail {
                 NavigationLink {
                     TaskDetailView(item: item, task: model.task(for: item), planNow: plan.reasoning.now)

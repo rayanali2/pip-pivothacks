@@ -17,7 +17,13 @@ struct HomeView: View {
                 HomeContextStrip()
                 hero
                 if model.pipState == .thinking || model.isRevealingPipeline {
-                    PipelineRevealView()
+                    // Only a new capture reveals stages; a rerank from Home would show the last capture's.
+                    if model.isRevealingPipeline {
+                        PipelineRevealView()
+                    } else {
+                        PipStatusView(symbol: "", title: "Finding your next step", detail: "Checking time, tasks and deadlines", loading: true)
+                            .pipCard()
+                    }
                     if !submittedText.isEmpty {
                         Text("“\(submittedText)”").font(.footnote).foregroundStyle(PipDesign.secondary)
                             .fixedSize(horizontal: false, vertical: true)
