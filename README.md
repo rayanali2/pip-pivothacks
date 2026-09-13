@@ -191,7 +191,7 @@ There are two ways to verify.
 - **Recording:** it MERGEs the result into `PIP.APP.CORTEX_CONFIG` (keys `complete_fn`, `complete_model`, `embed_fn`, `transcribe_fn`, each with `verified_at`) and returns the collected errors.
 
 **The API's `GET /health`** reports `cortex {transcribe, complete, complete_model, embed, verified_at, errors}`.
-- `GET /health?refresh=1` re-verifies with a real staged m4a and writes `CORTEX_CONFIG`. This is the definitive check.
+- Verification runs in the background at API boot, and again on `GET /health?refresh=1`. It tries the completion and embedding chains, PUTs a generated 1-second silent WAV to `@AUDIO_STAGE/_probe/` and calls `AI_TRANSCRIBE` on it, then MERGEs the results into `CORTEX_CONFIG`. This is the definitive check. A real iOS m4a is only tested by an actual voice capture.
 - The procedures read `CORTEX_CONFIG` and try the recorded function and model first, then the full chain. Each attempt is isolated, so a missing function only fails that attempt.
 - If every completion attempt fails, `BUILD_PLAN` still returns the deterministic plan, with model `sql-prerank`.
 

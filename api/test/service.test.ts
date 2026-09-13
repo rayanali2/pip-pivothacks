@@ -50,7 +50,7 @@ describe('PipService fallback', () => {
     expect((await service.warmPing()).source).toBe('fallback');
   });
 
-  it('the LiveBackend stub falls back too', async () => {
+  it('a LiveBackend whose Snowflake calls fail falls back too', async () => {
     const config = loadConfig({
       SNOWFLAKE_ACCOUNT: 'acct',
       SNOWFLAKE_USER: 'user',
@@ -58,7 +58,13 @@ describe('PipService fallback', () => {
       SNOWFLAKE_WAREHOUSE: 'wh',
     });
     expect(config.mode).toBe('live');
-    const service = liveServiceWith(new LiveBackend(config));
+    // Inject a failing executor: the real client would attempt a network login to acct.snowflakecomputing.com.
+    const unreachable = {
+      query: async (): Promise<never> => {
+        throw new Error('snowflake unreachable');
+      },
+    };
+    const service = liveServiceWith(new LiveBackend(config, undefined, unreachable));
     const capture = await service.captureText({ student_id: 'demo', text: 'I have a 2 PM lab. What should I do?', followup_plan_id: null });
     expect(capture.source).toBe('fallback');
   });

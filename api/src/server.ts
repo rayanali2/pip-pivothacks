@@ -4,6 +4,7 @@ import { createClock } from './clock';
 import { errorMessage, log } from './log';
 import { MemoryBackend } from './backends/memory';
 import { LiveBackend } from './backends/live';
+import { preloadSnowflakeSdk } from './snowflake/client';
 import { PipService } from './service';
 import { createApp } from './app';
 
@@ -19,10 +20,15 @@ function lanAddresses(): string[] {
   return out;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const config = getConfig();
   const clock = createClock({ demoNow: config.demoNow, mode: config.mode });
   const memory = new MemoryBackend({ clock, snowflakeConfigured: config.snowflakeConfigured });
+  if (config.mode === 'live') {
+    // snowflake-sdk is large and its require() is synchronous: load it before listening so no request waits behind it.
+    const ms = await preloadSnowflakeSdk();
+    log.info(`snowflake-sdk loaded in ${ms} ms`);
+  }
   const live = config.mode === 'live' ? new LiveBackend(config, clock) : undefined;
   const service = new PipService(config.mode, memory, live);
   const app = createApp(service);
@@ -39,9 +45,17 @@ function main(): void {
     process.exitCode = 1;
   });
 
-  setInterval(() => {
-    service.warmPing().catch((err: unknown) => log.warn(`warm ping failed: ${errorMessage(err)}`));
-  }, WARM_PING_MS);
+  if (live) {
+    // Non-blocking: connects, verifies which Cortex functions work, MERGEs CORTEX_CONFIG and logs the result.
+    log.info('live: verifying Snowflake Cortex functions in the background');
+    live.verifyCortexInBackground().catch((err: unknown) => log.warn(`Cortex verification failed: ${errorMessage(err)}`));
+    setInterval(() => {
+      service.warmPing().catch((err: unknown) => log.warn(`warm ping failed: ${errorMessage(err)}`));
+    }, WARM_PING_MS);
+  }
 }
 
-main();
+main().catch((err: unknown) => {
+  log.error(`startup failed: ${errorMessage(err)}`);
+  process.exitCode = 1;
+});
