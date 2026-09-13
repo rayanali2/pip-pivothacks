@@ -6,6 +6,7 @@ import { capturesRouter } from './routes/captures';
 import { plansRouter } from './routes/plans';
 import { scheduleRouter } from './routes/timetable';
 import { logRouter } from './routes/log';
+import { ContextStore, contextRouter } from './routes/context';
 import { errorHandler, notFound } from './routes/util';
 
 export function createApp(service: PipService): Express {
@@ -27,6 +28,7 @@ export function createApp(service: PipService): Express {
   app.use(plansRouter(service));
   app.use(scheduleRouter(service));
   app.use(logRouter(service));
+  app.use(contextRouter(new ContextStore(() => service.clock.realNow())));
 
   app.use(notFound);
   app.use(errorHandler);
