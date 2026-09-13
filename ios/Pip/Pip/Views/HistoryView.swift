@@ -6,6 +6,7 @@ struct HistoryView: View {
 
     enum HistoryMode: Hashable {
         case decisions
+        case context
         case pivots
     }
 
@@ -14,6 +15,7 @@ struct HistoryView: View {
             List {
                 Picker("View", selection: $mode) {
                     Text("Decisions").tag(HistoryMode.decisions)
+                    Text("Context").tag(HistoryMode.context)
                     Text("Pivot Log").tag(HistoryMode.pivots)
                 }
                 .pickerStyle(.segmented)
@@ -22,6 +24,8 @@ struct HistoryView: View {
                 switch mode {
                 case .decisions:
                     decisionRows
+                case .context:
+                    contextRows
                 case .pivots:
                     pivotRows
                 }
@@ -63,6 +67,19 @@ struct HistoryView: View {
     }
 
     @ViewBuilder
+    private var contextRows: some View {
+        if model.contextHistory.isEmpty {
+            Text("No context plans yet. Change free time on Today.")
+                .foregroundStyle(.secondary)
+                .listRowSeparator(.hidden)
+        } else {
+            ForEach(model.contextHistory) { entry in
+                ContextHistoryRow(entry: entry)
+            }
+        }
+    }
+
+    @ViewBuilder
     private var pivotRows: some View {
         if model.pivotLog.isEmpty {
             Text("No pivots logged yet.")
@@ -78,6 +95,57 @@ struct HistoryView: View {
     private func refresh() async {
         await model.refreshHistory()
         await model.refreshPivotLog()
+        await model.refreshContextHistory()
+    }
+}
+
+/// The input context snapshot next to the recommendation it produced.
+private struct ContextHistoryRow: View {
+    let entry: ContextHistoryEntry
+
+    var body: some View {
+        let plan = entry.plan
+        let s = plan.snapshot
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text(DateFormatting.dayTime(entry.createdAt) ?? entry.createdAt)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Text("rev \(s.revision)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                Spacer(minLength: 4)
+                Text("\(plan.resultState.label) · \(plan.provenance.label)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            Text(inputLine(s))
+                .font(.footnote.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Do now: \(plan.doNow?.label ?? "nothing fits")")
+                .font(.body.weight(.semibold))
+            Text(plan.reason)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !entry.actions.isEmpty {
+                Label("Started · \(entry.actions.count == 1 ? "1 action" : "\(entry.actions.count) actions")", systemImage: "checkmark.circle")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func inputLine(_ s: ContextSnapshot) -> String {
+        var parts = ["Now \(ContextTimeFormatting.wallTime(s.now))"]
+        if let next = s.nextCommitment {
+            parts.append("\(next.title) \(ContextTimeFormatting.wallTime(next.startsAt))")
+        }
+        parts.append(s.statedMinutes.map { "free \(s.availableMinutes) (said \($0), computed \(s.computedFreeMinutes))" } ?? "free \(s.availableMinutes) min")
+        parts.append("cash \(ContextMoneyFormatting.amount(s.money.cashCents, s.money.currency)), reserve \(ContextMoneyFormatting.amount(s.money.reserveCents, s.money.currency))")
+        return parts.joined(separator: " · ")
     }
 }
 

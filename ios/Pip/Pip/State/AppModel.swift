@@ -18,6 +18,31 @@ enum PipState: Equatable {
     }
 }
 
+/// "Update context" presets. nil minutes = the full window the server computes from the timetable and demo clock.
+enum ContextPreset: String, CaseIterable, Identifiable, Hashable {
+    case full
+    case fortyEight
+    case twentyFive
+
+    var id: String { rawValue }
+
+    var minutes: Int? {
+        switch self {
+        case .full: return nil
+        case .fortyEight: return 48
+        case .twentyFive: return 25
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .full: return "Full window"
+        case .fortyEight: return "48 min"
+        case .twentyFive: return "25 min"
+        }
+    }
+}
+
 enum AppTab: Hashable {
     case home
     case today
@@ -47,6 +72,16 @@ final class AppModel {
     /// item_id of the item whose "Start now" was just recorded.
     var startNowConfirmation: String?
     var actionMessage: String?
+
+    // MARK: Context (Pivot 3)
+    var contextPlan: ContextPlan?
+    var contextPreset: ContextPreset = .full
+    var contextHistory: [ContextHistoryEntry] = []
+    var isContextLoading = false
+    /// snapshot request id whose "Start now" was recorded
+    var contextStartedRequestID: String?
+    /// Only responses for the latest context revision may update the screen or speak.
+    @ObservationIgnored private var contextRevision = 0
 
     // MARK: Schedule / profile / history
     var todayTimetable: TodayTimetableResponse?
@@ -109,6 +144,7 @@ final class AppModel {
         hasBootstrapped = true
         await connect()
         await refreshAll()
+        updateContext(contextPreset)
     }
 
     func refreshAll() async {
@@ -116,6 +152,84 @@ final class AppModel {
         await refreshProfile()
         await refreshHistory()
         await refreshPivotLog()
+        await refreshContextHistory()
+    }
+
+    // MARK: Context (Pivot 3)
+
+    /// Re-runs prioritization for the chosen free time. No restart, rebuild or re-recording.
+    func updateContext(_ preset: ContextPreset) {
+        contextPreset = preset
+        contextRevision += 1
+        let revision = contextRevision
+        guard !isOffline else {
+            contextPlan = nil
+            isContextLoading = false
+            return
+        }
+        let requestID = "ctx-\(UUID().uuidString)"
+        isContextLoading = true
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let response = try await self.call { service in
+                    try await service.contextPlan(requestID: requestID, statedMinutes: preset.minutes)
+                }
+                // A late answer for an older context never replaces a newer plan or its speech.
+                guard revision == self.contextRevision else { return }
+                self.isContextLoading = false
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
+                    self.contextPlan = response.plan
+                    self.contextStartedRequestID = nil
+                }
+                self.speakContext(response.plan)
+                await self.refreshContextHistory()
+            } catch {
+                guard revision == self.contextRevision else { return }
+                self.isContextLoading = false
+                // Never keep an older answer on screen as if it had just been computed.
+                self.contextPlan = nil
+                self.showError(error)
+            }
+        }
+    }
+
+    func startContextNow() {
+        guard let plan = contextPlan, plan.doNow != nil else { return }
+        let planRequestID = plan.snapshot.requestId
+        let requestID = "act-\(UUID().uuidString)"
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                _ = try await self.call { service in
+                    try await service.contextAction(requestID: requestID, planRequestID: planRequestID)
+                }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    self.contextStartedRequestID = planRequestID
+                }
+                await self.refreshContextHistory()
+            } catch {
+                self.showError(error)
+            }
+        }
+    }
+
+    func refreshContextHistory() async {
+        guard !isOffline else { return }
+        if let response = try? await call({ service in try await service.contextHistory() }) {
+            contextHistory = response.entries
+        }
+    }
+
+    private func speakContext(_ plan: ContextPlan) {
+        speaker.stop()
+        guard let doNow = plan.doNow else {
+            speakOrIdle(plan.reason)
+            return
+        }
+        speakOrIdle("Do now: \(doNow.label). \(plan.reason)")
     }
 
     // MARK: Voice

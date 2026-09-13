@@ -38,6 +38,9 @@ protocol PipService: AnyObject {
     func history() async throws -> HistoryResponse
     func pivotLog() async throws -> PivotLogResponse
     func resetDemo() async throws -> DemoResetResponse
+    func contextPlan(requestID: String, statedMinutes: Int?) async throws -> ContextPlanResponse
+    func contextAction(requestID: String, planRequestID: String) async throws -> ContextActionResponse
+    func contextHistory() async throws -> ContextHistoryResponse
 }
 
 @MainActor
@@ -154,6 +157,23 @@ final class RemoteService: PipService {
         let payload = DemoResetRequest(studentId: Config.studentID)
         let request = try makeJSONRequest("POST", "/demo/reset", body: payload, timeout: Self.shortTimeout)
         return try await send(request, as: DemoResetResponse.self)
+    }
+
+    func contextPlan(requestID: String, statedMinutes: Int?) async throws -> ContextPlanResponse {
+        let payload = ContextPlanRequest(requestId: requestID, statedMinutes: statedMinutes)
+        let request = try makeJSONRequest("POST", "/context/plan", body: payload, timeout: Self.shortTimeout)
+        return try await send(request, as: ContextPlanResponse.self)
+    }
+
+    func contextAction(requestID: String, planRequestID: String) async throws -> ContextActionResponse {
+        let payload = ContextActionRequest(requestId: requestID, planRequestId: planRequestID, kind: "start_now")
+        let request = try makeJSONRequest("POST", "/context/actions", body: payload, timeout: Self.shortTimeout)
+        return try await send(request, as: ContextActionResponse.self)
+    }
+
+    func contextHistory() async throws -> ContextHistoryResponse {
+        let request = try makeRequest("GET", "/context/history", timeout: Self.shortTimeout)
+        return try await send(request, as: ContextHistoryResponse.self)
     }
 
     // MARK: Plumbing

@@ -29,11 +29,18 @@ struct TodayPlanView: View {
                     FollowUpBar()
                 }
         } else {
-            ContentUnavailableView(
-                "No plan yet",
-                systemImage: "bird",
-                description: Text("Tell Pip about your day on the Pip tab")
-            )
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    ContextSection()
+                    ContentUnavailableView(
+                        "No voice plan yet",
+                        systemImage: "bird",
+                        description: Text("Tell Pip about your day on the Pip tab")
+                    )
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+            }
         }
     }
 }
@@ -47,6 +54,13 @@ private struct PlanScrollView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
+                ContextSection()
+
+                Divider()
+
+                Text("From your voice plan")
+                    .font(.headline)
+
                 header
 
                 if let diff = model.lastDiff {

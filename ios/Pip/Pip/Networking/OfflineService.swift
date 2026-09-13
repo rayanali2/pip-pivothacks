@@ -42,6 +42,19 @@ final class OfflineService: PipService {
         return response
     }
 
+    // Context planning is computed by the API; nothing is bundled, so offline never shows a stored answer as new.
+    func contextPlan(requestID: String, statedMinutes: Int?) async throws -> ContextPlanResponse {
+        throw PipError.server("Live context planning needs the Pip API.")
+    }
+
+    func contextAction(requestID: String, planRequestID: String) async throws -> ContextActionResponse {
+        throw PipError.server("Live context planning needs the Pip API.")
+    }
+
+    func contextHistory() async throws -> ContextHistoryResponse {
+        ContextHistoryResponse(source: .fallback, entries: [])
+    }
+
     func captureVoice(fileURL: URL, followupPlanID: String?) async throws -> CaptureResponse {
         try? FileManager.default.removeItem(at: fileURL)
         if followupPlanID != nil {
