@@ -1,6 +1,6 @@
 # UniMate
 
-UniMate is a voice-first iOS companion for first-time independent university students. It appears as a small penguin. The student holds a button and describes an overloaded day, for example: a lab at 2, a refund deadline, an assignment due tomorrow, groceries on $35 until Friday. UniMate answers out loud with one practical next action ("do now") and a Today Plan built around their timetable, their money and basic needs such as food and sleep. t
+UniMate is a voice-first iOS companion for first-time independent university students. It appears as a small penguin. The student holds a button and describes an overloaded day, for example: a lab at 2, a refund deadline, an assignment due tomorrow, groceries on $35 until Friday. UniMate answers out loud with one practical next action ("do now") and a Today Plan built around their timetable, their money and basic needs such as food and sleep.
 
 Snowflake Cortex is the brain. `AI_TRANSCRIBE` turns speech into text, and the stored procedures `EXTRACT_FROM_TRANSCRIPT` and `BUILD_PLAN` turn the transcript into tasks and a ranked plan. A deterministic ranker (in SQL inside Snowflake, and in TypeScript inside the API) keeps the demo working when Cortex or the network is unavailable.
 
